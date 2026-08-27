@@ -193,6 +193,13 @@ export interface ActivityEntry {
   detail: string | null;
 }
 
+/**
+ * Note: there is deliberately no `approvedText` field. Approved wording is
+ * *derived* from the staged edits (see `effectiveClauseText`), so the source
+ * agreement in `revision.clauses` can never be overwritten by staging, and
+ * approve/reject/undo can never leave a clause holding text no live decision
+ * still supports.
+ */
 export interface AppState {
   revision: DocumentRevision;
   partyRole: PartyRole;
@@ -208,11 +215,6 @@ export interface AppState {
   focusPulse: number;
   packages: readonly RedlinePackage[];
   edits: readonly StagedEdit[];
-  /**
-   * Approved replacement text per clause. Separate from `revision.clauses` so
-   * staged proposals can never overwrite the source agreement.
-   */
-  approvedText: Readonly<Record<string, string>>;
   activity: readonly ActivityEntry[];
   seq: number;
   webmcpStatus: WebMcpStatus;

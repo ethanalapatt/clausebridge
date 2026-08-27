@@ -1,6 +1,13 @@
 import { describe, expect, it } from "vitest";
 
-import { applyAfter, applyBefore, diffStats, diffWords, tokenize } from "@/core/diff";
+import {
+  applyAfter,
+  applyBefore,
+  diffStats,
+  diffWords,
+  isBlockReplacement,
+  tokenize,
+} from "@/core/diff";
 
 const rendered = (before: string, after: string) =>
   diffWords(before, after).map((op) => `${op.type}:${op.text}`);
@@ -98,6 +105,32 @@ describe("diffWords", () => {
       { type: "insert", text: "beta" },
       { type: "equal", text: tail },
     ]);
+  });
+});
+
+describe("isBlockReplacement", () => {
+  it("is false when nothing changed", () => {
+    expect(isBlockReplacement(diffStats(diffWords("same text", "same text")))).toBe(false);
+  });
+
+  it("is false for a small targeted edit inside a long clause", () => {
+    const body = Array.from({ length: 60 }, (_, i) => `word${i}`).join(" ");
+    const stats = diffStats(diffWords(`${body} ninety days`, `${body} thirty days`));
+    expect(isBlockReplacement(stats)).toBe(false);
+  });
+
+  it("is true when almost nothing survives the rewrite", () => {
+    const stats = diffStats(
+      diffWords(
+        "Northstar may retain Customer Data for as long as Northstar deems necessary.",
+        "Customer Data is deleted within thirty days of termination.",
+      ),
+    );
+    expect(isBlockReplacement(stats)).toBe(true);
+  });
+
+  it("is true for a replacement with no shared words at all", () => {
+    expect(isBlockReplacement(diffStats(diffWords("alpha bravo", "charlie delta")))).toBe(true);
   });
 });
 

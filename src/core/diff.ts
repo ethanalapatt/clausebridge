@@ -148,6 +148,23 @@ export function diffStats(ops: readonly DiffOp[]): DiffStats {
   };
 }
 
+/**
+ * True when so little survived that a word-level diff would read as noise.
+ *
+ * A near-total clause rewrite produces long interleaved runs of strikethrough
+ * and insertion where the few shared words ("the", "days", "Customer") are
+ * coincidental rather than meaningful. Above this threshold the change is better
+ * shown as a whole-clause replacement. Presentation only — the underlying ops
+ * are unchanged.
+ */
+export function isBlockReplacement(stats: DiffStats): boolean {
+  if (!stats.changed) return false;
+  const changedWords = Math.max(stats.wordsAdded, stats.wordsRemoved);
+  const total = stats.wordsUnchanged + changedWords;
+  if (total === 0) return false;
+  return stats.wordsUnchanged / total < 0.35;
+}
+
 /** Reconstructs the "before" side. Used in tests to prove the diff is lossless. */
 export function applyBefore(ops: readonly DiffOp[]): string {
   return ops

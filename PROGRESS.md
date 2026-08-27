@@ -3,9 +3,9 @@
 ## Status
 
 - Current phase: Rough Sketch Checkpoint
-- Current milestone: 3 — fictional corpus and deterministic segmentation
-- Overall state: document model, seeded agreement, fallback library, segmentation, and word-level diff implemented and unit-tested
-- Last updated: after milestone 3 verification, before the milestone 3 commit
+- Current milestone: 4 — deterministic clause workflow
+- Overall state: handlers, decision state machine, undo, and Markdown exports implemented; 101 unit tests pass
+- Last updated: after milestone 4 verification, before the milestone 4 commit
 
 ## Approved decisions
 
@@ -29,7 +29,7 @@
 - Remote name: `origin`
 - Target branch: `main`
 - Upstream configured: yes — `main` tracks `origin/main`
-- Last pushed commit: `d1a7503eb1da537e63d790f688c7e78a0a929941` (`chore: scaffold approved application stack`)
+- Last pushed commit: `45f09054b7131c7631ae25ef7a192aaf15004995` (`feat(core): add fictional corpus and deterministic segmentation`)
 - Local/remote sync: verified equal after each push; local HEAD SHA matched `git ls-remote origin refs/heads/main`
 - Authentication: existing `gh` CLI login as `ethanalapatt` (scopes `gist, read:org, repo`), verified via `gh auth status`. No credentials requested, printed, stored, or committed.
 
@@ -46,18 +46,21 @@
 - [x] Fictional fallback library: 14 entries keyed by clause type and party role, each labeled with its demo-library source.
 - [x] Conservative pasted-text segmentation (headings, then paragraph fallback) with manual merge/split/retitle correction producing a new revision.
 - [x] Lossless word-level LCS diff with stats, verified to reconstruct both sides exactly.
+- [x] Both WebMCP handlers implemented deterministically with strict validation: unknown-vs-stale clause IDs, duplicate edits, malformed edits, no-op redlines, atomic rejection.
+- [x] Decision state machine: independent approve/reject/edit/note/reset, derived effective text so the source agreement is never overwritten, and a labeled undo stack.
+- [x] Deterministic negotiation-brief and redlined-Markdown exports containing no wall-clock time.
 
 ## Current working state
 
-- Uncommitted files: `src/core/{types,ids,segmentation,diff}.ts`, `src/core/seed/{northstar,fallbackLibrary}.ts`, `src/core/{segmentation,diff}.test.ts`.
-- What those changes are intended to do: establish the document/revision model, the fictional Northstar agreement, the fictional fallback library, conservative pasted-text segmentation with revision-namespaced stable IDs, and a lossless word-level diff.
-- Are tests/build currently passing: yes — 33 unit tests, typecheck, and lint all pass.
+- Uncommitted files: `src/core/{state,handlers,exports}.ts`, `src/core/{state,handlers,exports}.test.ts`, plus edits to `src/core/{types,diff}.ts` and `src/core/diff.test.ts`.
+- What those changes are intended to do: implement the two tool handlers, the independent-decision state machine with undo, and the deterministic Markdown exports, all as pure functions taking the timestamp as an argument.
+- Are tests/build currently passing: yes — 101 unit tests, typecheck, and lint all pass.
 - Preview command: `npm run dev`.
 - Last known local preview URL: http://localhost:3000 (observed HTTP 200 at milestone 2).
 
 ## Test and build status
 
-- Unit tests: `npm run test` — 33 passed, 0 failed, exit 0 (`src/core/diff.test.ts` 12, `src/core/segmentation.test.ts` 21).
+- Unit tests: `npm run test` — 101 passed, 0 failed, exit 0 (diff 16, segmentation 21, handlers 23, state 23, exports 18).
 - Type checking: `npm run typecheck` — passed, exit 0.
 - Lint: `npm run lint` — passed, exit 0, no findings.
 - Production build: `npm run build` — last run passed at milestone 2; rerun at the verification milestone.
@@ -77,9 +80,9 @@
 
 ## Next exact action
 
-1. Commit and push milestone 3 as `feat(core): add fictional corpus and deterministic segmentation`.
-2. Build milestone 4: the redline state machine — context retrieval, package validation, staged-versus-approved separation, independent approve/reject/edit/note, undo, decision log, and deterministic Markdown exports, each with unit tests.
-3. Then milestone 5: WebMCP registration plus the visibly labeled local handler-test control.
+1. Commit and push milestone 4 as `feat(core): implement deterministic clause workflow`.
+2. Build milestone 5: WebMCP registration (`src/webmcp/`) with exact tool contracts, plus the visibly labeled local handler-test control that calls the same handlers.
+3. Then milestone 6: the three-part workspace UI wiring everything into the golden path.
 
 ## Remaining rough-sketch requirements
 
@@ -88,10 +91,10 @@
 - [ ] Role, priority, selection, non-negotiable, focus, revision, and decision controls.
 - [x] Deterministic seeded and pasted-text clause segmentation with stable IDs and a manual correction path.
 - [x] Fictional local fallback library keyed by clause type and party role.
-- [ ] Exact context retrieval with stale/unknown ID rejection and no generated legal language.
+- [x] Exact context retrieval with stale/unknown ID rejection and no generated legal language.
 - [ ] Staged three-clause redline package with exact inline diff and original/staged/approved state separation.
-- [ ] Independent approve, reject, edit, note, and undo actions plus a deterministic decision log.
-- [ ] Deterministic negotiation-brief and redlined-Markdown previews/exports.
+- [x] Independent approve, reject, edit, note, and undo actions plus a deterministic decision log.
+- [x] Deterministic negotiation-brief and redlined-Markdown previews/exports (renderers done; UI preview panes pending).
 - [ ] Exact WebMCP tools: `get_negotiation_context` and `stage_redline_package`.
 - [ ] Visibly labeled local handler-test fallback calling the same handlers as WebMCP.
 - [ ] Visible WebMCP status and chronological tool/audit timeline.
