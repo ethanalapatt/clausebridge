@@ -3,9 +3,9 @@
 ## Status
 
 - Current phase: Rough Sketch Checkpoint
-- Current milestone: 2 — approved application scaffold
-- Overall state: baseline pushed; dependencies installed; scaffold starts, typechecks, lints, and builds
-- Last updated: after milestone 2 verification, before the milestone 2 commit
+- Current milestone: 3 — fictional corpus and deterministic segmentation
+- Overall state: document model, seeded agreement, fallback library, segmentation, and word-level diff implemented and unit-tested
+- Last updated: after milestone 3 verification, before the milestone 3 commit
 
 ## Approved decisions
 
@@ -29,8 +29,8 @@
 - Remote name: `origin`
 - Target branch: `main`
 - Upstream configured: yes — `main` tracks `origin/main`
-- Last pushed commit: `77b27d53ea12f86cb318a4800c81cb1c02c962ce` (`chore: initialize ClauseBridge workflow`)
-- Local/remote sync: verified equal at milestone 1; local HEAD SHA matched `git ls-remote origin refs/heads/main`
+- Last pushed commit: `d1a7503eb1da537e63d790f688c7e78a0a929941` (`chore: scaffold approved application stack`)
+- Local/remote sync: verified equal after each push; local HEAD SHA matched `git ls-remote origin refs/heads/main`
 - Authentication: existing `gh` CLI login as `ethanalapatt` (scopes `gist, read:org, repo`), verified via `gh auth status`. No credentials requested, printed, stored, or committed.
 
 ## Completed and verified
@@ -41,22 +41,27 @@
 - [x] `.gitignore` created with the protocol's required entries plus Next.js build output.
 - [x] Baseline committed (`77b27d5`) and pushed to `origin/main`; remote SHA verified equal to local HEAD.
 - [x] Dependencies installed with a single `npm install`; scaffold typechecks, lints, builds, and serves HTTP 200 on the dev server.
+- [x] Document/revision model with revision-namespaced stable clause IDs and retired-ID tracking for stale-versus-unknown rejection.
+- [x] Fictional Northstar SaaS Services Agreement: preamble plus 11 clauses covering all eight required sections.
+- [x] Fictional fallback library: 14 entries keyed by clause type and party role, each labeled with its demo-library source.
+- [x] Conservative pasted-text segmentation (headings, then paragraph fallback) with manual merge/split/retitle correction producing a new revision.
+- [x] Lossless word-level LCS diff with stats, verified to reconstruct both sides exactly.
 
 ## Current working state
 
-- Uncommitted files: `package.json`, `package-lock.json`, `tsconfig.json`, `next.config.ts`, `postcss.config.mjs`, `vitest.config.ts`, `eslint.config.mjs`, `src/app/{layout.tsx,page.tsx,globals.css}`.
-- What those changes are intended to do: stand up the approved Next.js stack with design tokens, and prove the toolchain works before any product code is written.
-- Are tests/build currently passing: typecheck, lint, and production build pass. No unit tests exist yet — the deterministic core lands in milestone 4.
+- Uncommitted files: `src/core/{types,ids,segmentation,diff}.ts`, `src/core/seed/{northstar,fallbackLibrary}.ts`, `src/core/{segmentation,diff}.test.ts`.
+- What those changes are intended to do: establish the document/revision model, the fictional Northstar agreement, the fictional fallback library, conservative pasted-text segmentation with revision-namespaced stable IDs, and a lossless word-level diff.
+- Are tests/build currently passing: yes — 33 unit tests, typecheck, and lint all pass.
 - Preview command: `npm run dev`.
-- Last known local preview URL: http://localhost:3000 (observed HTTP 200; server then stopped).
+- Last known local preview URL: http://localhost:3000 (observed HTTP 200 at milestone 2).
 
 ## Test and build status
 
-- Unit tests: none written yet (`vitest` installed and configured, `src/**/*.test.ts`).
+- Unit tests: `npm run test` — 33 passed, 0 failed, exit 0 (`src/core/diff.test.ts` 12, `src/core/segmentation.test.ts` 21).
 - Type checking: `npm run typecheck` — passed, exit 0.
-- Lint: `npm run lint` — passed, no findings.
-- Production build: `npm run build` — passed; 4 static pages generated, ~103 kB shared first-load JS.
-- Golden-path verification: not run; the workspace does not exist yet.
+- Lint: `npm run lint` — passed, exit 0, no findings.
+- Production build: `npm run build` — last run passed at milestone 2; rerun at the verification milestone.
+- Golden-path verification: not run; the workspace UI does not exist yet.
 
 ## Known non-blocking issues
 
@@ -72,17 +77,17 @@
 
 ## Next exact action
 
-1. Commit and push milestone 2 as `chore: scaffold approved application stack`.
-2. Build milestone 3: the three-part workspace shell, the fictional Northstar agreement, the fallback library, and the role/priority/selection controls.
-3. Then milestone 4: the deterministic clause core (segmentation, stable IDs, retrieval, validation, word-level diff, decisions, undo, exports) with its unit tests.
+1. Commit and push milestone 3 as `feat(core): add fictional corpus and deterministic segmentation`.
+2. Build milestone 4: the redline state machine — context retrieval, package validation, staged-versus-approved separation, independent approve/reject/edit/note, undo, decision log, and deterministic Markdown exports, each with unit tests.
+3. Then milestone 5: WebMCP registration plus the visibly labeled local handler-test control.
 
 ## Remaining rough-sketch requirements
 
 - [ ] Polished three-part ClauseBridge workspace with a persistent non-legal-advice disclaimer.
-- [ ] Bundled **Northstar SaaS Services Agreement — Fictional Demo** containing 8–12 clauses.
+- [x] Bundled **Northstar SaaS Services Agreement — Fictional Demo** containing 8–12 clauses.
 - [ ] Role, priority, selection, non-negotiable, focus, revision, and decision controls.
-- [ ] Deterministic seeded and pasted-text clause segmentation with stable IDs and a manual correction path.
-- [ ] Fictional local fallback library keyed by clause type and party role.
+- [x] Deterministic seeded and pasted-text clause segmentation with stable IDs and a manual correction path.
+- [x] Fictional local fallback library keyed by clause type and party role.
 - [ ] Exact context retrieval with stale/unknown ID rejection and no generated legal language.
 - [ ] Staged three-clause redline package with exact inline diff and original/staged/approved state separation.
 - [ ] Independent approve, reject, edit, note, and undo actions plus a deterministic decision log.
