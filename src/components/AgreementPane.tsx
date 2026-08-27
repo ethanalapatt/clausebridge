@@ -17,6 +17,8 @@ import {
 import { CLAUSE_TYPE_LABELS, INVOCATION_SOURCE_LABELS } from "@/core/types";
 import type { AppState, Clause, StagedEdit } from "@/core/types";
 
+const PULSE_CLASS = "clause-focus-pulse";
+
 /**
  * Pane 2: the readable agreement.
  *
@@ -31,9 +33,46 @@ export function AgreementPane() {
 
   useEffect(() => {
     const clauseId = state.focusedClauseId;
-    if (clauseId === null) return;
-    const node = containerRef.current?.querySelector(`[data-clause-id="${CSS.escape(clauseId)}"]`);
-    node?.scrollIntoView({ behavior: "smooth", block: "center" });
+    const container = containerRef.current;
+    if (clauseId === null || container === null) return;
+
+    const node = container.querySelector<HTMLElement>(
+      `[data-clause-id="${CSS.escape(clauseId)}"]`,
+    );
+    if (node === null) return;
+
+    // Centre the clause in the scrollport. Computed from rects rather than
+    // offsetTop so it does not depend on which ancestor happens to be the
+    // offsetParent.
+    const containerRect = container.getBoundingClientRect();
+    const nodeRect = node.getBoundingClientRect();
+    const centred =
+      container.scrollTop +
+      (nodeRect.top - containerRect.top) -
+      (container.clientHeight - nodeRect.height) / 2;
+    const target = Math.max(0, Math.min(centred, container.scrollHeight - container.clientHeight));
+
+    const reduceMotion =
+      typeof window.matchMedia === "function" &&
+      window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+    container.scrollTo({ top: target, behavior: reduceMotion ? "auto" : "smooth" });
+
+    // Some embedded and automated browsers accept `behavior: "smooth"` and then
+    // silently do nothing. Landing on the clause matters more than the easing,
+    // so verify and snap if the smooth scroll never happened.
+    const settle = window.setTimeout(() => {
+      if (Math.abs(container.scrollTop - target) > 4) container.scrollTop = target;
+    }, 450);
+
+    // Restart the pulse without remounting the clause: drop the class, force a
+    // reflow so the browser registers the removal, then re-apply it. Re-keying
+    // the element instead would tear down every clause on each tool call.
+    node.classList.remove(PULSE_CLASS);
+    void node.offsetWidth;
+    node.classList.add(PULSE_CLASS);
+
+    return () => window.clearTimeout(settle);
   }, [state.focusedClauseId, state.focusPulse]);
 
   return (
@@ -79,11 +118,9 @@ function ClauseBlock({ clause, state }: { clause: Clause; state: AppState }) {
   return (
     <article
       data-clause-id={clause.id}
-      // The pulse key restarts the animation on every fresh focus call.
-      key={`${clause.id}-${state.focusPulse}`}
       className={cx(
         "scroll-mt-6 rounded-md border px-4 py-3 transition-colors",
-        focused ? "border-bridge-500 bg-bridge-50/60 clause-focus-pulse" : "border-transparent",
+        focused ? "border-bridge-500 bg-bridge-50/60" : "border-transparent",
       )}
     >
       <header className="flex flex-wrap items-center gap-2">

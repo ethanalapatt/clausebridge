@@ -3,9 +3,9 @@
 ## Status
 
 - Current phase: Rough Sketch Checkpoint
-- Current milestone: 5 and 6 — WebMCP registration and the three-part workspace
-- Overall state: tools register, workspace UI built, golden path reachable; 132 unit tests, typecheck, lint, and production build all pass
-- Last updated: after milestone 5/6 verification, before those commits
+- Current milestone: 7 and 8 — verification and rough-sketch handoff
+- Overall state: Rough Sketch Checkpoint complete. Golden path verified in Chrome with an empty console; native WebMCP registration verified against an injected document.modelContext; README written
+- Last updated: after the browser verification pass, before the final commit
 
 ## Approved decisions
 
@@ -29,7 +29,7 @@
 - Remote name: `origin`
 - Target branch: `main`
 - Upstream configured: yes — `main` tracks `origin/main`
-- Last pushed commit: `c2d66191c37bbd0e674b40de3539ada0ac73296a` (`feat(core): implement deterministic clause workflow`)
+- Last pushed commit: `1800cbc168f1cf20a6d9bb809ea4920e0533889a` (`feat(ui): build fictional agreement workspace`)
 - Local/remote sync: verified equal after each push; local HEAD SHA matched `git ls-remote origin refs/heads/main`
 - Authentication: existing `gh` CLI login as `ethanalapatt` (scopes `gist, read:org, repo`), verified via `gh auth status`. No credentials requested, printed, stored, or committed.
 
@@ -53,14 +53,17 @@
 - [x] External store so a native agent can invoke handlers outside React and still read current state synchronously.
 - [x] Three-part workspace: outline/role/priority/selection rail, paper agreement pane with clause anchors and real focus pulses, and a fallback/redline/activity rail.
 - [x] Visibly labeled local handler-test console calling the identical handlers, with golden-path prefills built from library text only.
+- [x] Golden path driven end to end in Chrome: context retrieval, three-clause staging, approve/edit/reject/note, undo, and both export previews. Console empty — no errors, no hydration warnings.
+- [x] Native WebMCP path verified by injecting a `document.modelContext`: both tools registered with the exact schemas and `additionalProperties: false`, `execute` routed into the same handlers, an unknown clause ID was rejected without changing the agreement, and every entry was tagged `native WebMCP`.
+- [x] README covering setup, demo, WebMCP rationale, tool contracts, architecture, fictional data, legal limitations, verification, and remaining scope.
 
 ## Current working state
 
-- Uncommitted files: `src/webmcp/{schemas,register}.ts` + test, `src/app/{store,useClauseBridge}.ts`, `src/app/store.test.ts`, `src/core/demo.ts` + test, `src/components/*`, and `src/app/page.tsx`.
-- What those changes are intended to do: register the exact WebMCP contracts, expose the handlers through an external store, and build the three-part workspace that drives them.
-- Are tests/build currently passing: yes — 132 unit tests, typecheck, lint, and production build all pass.
+- Uncommitted files: `README.md` and a fix in `src/components/AgreementPane.tsx`.
+- What those changes are intended to do: document the checkpoint, and fix two real bugs the browser pass surfaced (see below).
+- Are tests/build currently passing: yes — `npm run verify` exits 0 (typecheck, lint, 132 tests, production build).
 - Preview command: `npm run dev`.
-- Last known local preview URL: http://localhost:3000 (HTTP 200 observed at milestone 2; browser golden path verified at the verification milestone).
+- Last known local preview URL: http://localhost:3000 — golden path driven there successfully.
 
 ## Test and build status
 
@@ -68,11 +71,25 @@
 - Type checking: `npm run typecheck` — passed, exit 0.
 - Lint: `npm run lint` — passed, exit 0, no findings.
 - Production build: `npm run build` — passed, exit 0; `/` is 24.6 kB, 127 kB first-load JS, statically prerendered.
-- Golden-path verification: not run; the workspace UI does not exist yet.
+- Golden-path verification: PASSED in Chrome. Loaded the seed, set role/priorities/locks/selection, ran `get_negotiation_context` (clause focused and scrolled), staged the three-clause Customer Baseline, then approved termination, edited data retention, rejected liability, and added a note. The rejected clause rendered zero diff marks, confirming the source text was untouched. Both export previews rendered. Console contained only React DevTools info — no errors, no hydration warnings.
+- Native WebMCP verification: PASSED against an injected `document.modelContext`. Registered `get_negotiation_context` and `stage_redline_package` with the exact required arrays and `additionalProperties: false`; `execute` returned correct results; `NSA-r1-99` was rejected with `INVALID_CLAUSE_IDS` and no document change; all six resulting activity entries were tagged `native WebMCP`.
 
 ## Known non-blocking issues
 
 - `npm audit` reports 2 advisories (1 high, 1 moderate) in `postcss`, reached transitively through `next@15.5.24`'s build toolchain. The only offered fix is `next@16`, a breaking upgrade outside the approved stack. It is a build-time dependency that never processes untrusted CSS in this local-only prototype, so the approved stack was left intact and this is recorded as a documented limitation rather than silently upgraded.
+
+## Bugs found and fixed during browser verification
+
+Both were in `src/components/AgreementPane.tsx` and were only observable in a real browser:
+
+1. A `key` on the `<article>` element changed with every focus pulse, which forced React to unmount
+   and remount every clause on each tool call. It did not restart the animation as intended and it
+   cancelled the scroll that had just started. Replaced with a class remove/reflow/re-add on the
+   focused node only.
+2. `scrollIntoView({ behavior: "smooth" })` was accepted and then silently ignored in the automated
+   Chrome context (`behavior: "auto"` scrolled correctly; `smooth` left `scrollTop` at 0). Replaced
+   with a rect-based target and `container.scrollTo`, plus a 450 ms check that snaps to the target if
+   the smooth scroll never happened. Reduced-motion preference is honoured.
 
 ## Blockers and failed attempts
 
@@ -84,9 +101,9 @@
 
 ## Next exact action
 
-1. Commit and push milestone 5 (`feat(webmcp): register ClauseBridge browser tools`) and milestone 6 (`feat(ui): build fictional agreement workspace`).
-2. Milestone 7 — verification: drive the golden path in a real browser, confirm the console has no material runtime errors, and re-run the full check suite.
-3. Milestone 8 — handoff: README, limitations, demo walkthrough, final commit and push, then stop for review.
+1. Commit and push the final milestone as `docs: add rough sketch demo and limitations`.
+2. **Stop.** The Rough Sketch Checkpoint is complete; wait for the user's visual and product feedback.
+3. Do not begin the later MVP, hosting, licensing, Devpost materials, or any scope expansion without explicit approval.
 
 ## Remaining rough-sketch requirements
 
@@ -102,8 +119,8 @@
 - [x] Exact WebMCP tools: `get_negotiation_context` and `stage_redline_package`.
 - [x] Visibly labeled local handler-test fallback calling the same handlers as WebMCP.
 - [x] Visible WebMCP status and chronological tool/audit timeline.
-- [ ] Required core tests, type/lint/build verification, and error-free golden path.
-- [ ] README covering setup, architecture, tools, demo, fictional data, legal limitations, and remaining scope.
+- [x] Required core tests, type/lint/build verification, and error-free golden path.
+- [x] README covering setup, architecture, tools, demo, fictional data, legal limitations, and remaining scope.
 - [ ] Final verified milestone committed and pushed to the approved GitHub repository.
 - [ ] Local preview left running when possible, followed by a review handoff; do not continue past the rough sketch.
 
