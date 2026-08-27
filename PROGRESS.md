@@ -3,9 +3,9 @@
 ## Status
 
 - Current phase: Rough Sketch Checkpoint
-- Current milestone: 4 — deterministic clause workflow
-- Overall state: handlers, decision state machine, undo, and Markdown exports implemented; 101 unit tests pass
-- Last updated: after milestone 4 verification, before the milestone 4 commit
+- Current milestone: 5 and 6 — WebMCP registration and the three-part workspace
+- Overall state: tools register, workspace UI built, golden path reachable; 132 unit tests, typecheck, lint, and production build all pass
+- Last updated: after milestone 5/6 verification, before those commits
 
 ## Approved decisions
 
@@ -29,7 +29,7 @@
 - Remote name: `origin`
 - Target branch: `main`
 - Upstream configured: yes — `main` tracks `origin/main`
-- Last pushed commit: `45f09054b7131c7631ae25ef7a192aaf15004995` (`feat(core): add fictional corpus and deterministic segmentation`)
+- Last pushed commit: `c2d66191c37bbd0e674b40de3539ada0ac73296a` (`feat(core): implement deterministic clause workflow`)
 - Local/remote sync: verified equal after each push; local HEAD SHA matched `git ls-remote origin refs/heads/main`
 - Authentication: existing `gh` CLI login as `ethanalapatt` (scopes `gist, read:org, repo`), verified via `gh auth status`. No credentials requested, printed, stored, or committed.
 
@@ -49,21 +49,25 @@
 - [x] Both WebMCP handlers implemented deterministically with strict validation: unknown-vs-stale clause IDs, duplicate edits, malformed edits, no-op redlines, atomic rejection.
 - [x] Decision state machine: independent approve/reject/edit/note/reset, derived effective text so the source agreement is never overwritten, and a labeled undo stack.
 - [x] Deterministic negotiation-brief and redlined-Markdown exports containing no wall-clock time.
+- [x] WebMCP registration: exactly the two baseline tools with verbatim names, descriptions, and schemas; no shim or polyfill when the API is absent; partial registration rolled back and contract mismatches reported rather than worked around.
+- [x] External store so a native agent can invoke handlers outside React and still read current state synchronously.
+- [x] Three-part workspace: outline/role/priority/selection rail, paper agreement pane with clause anchors and real focus pulses, and a fallback/redline/activity rail.
+- [x] Visibly labeled local handler-test console calling the identical handlers, with golden-path prefills built from library text only.
 
 ## Current working state
 
-- Uncommitted files: `src/core/{state,handlers,exports}.ts`, `src/core/{state,handlers,exports}.test.ts`, plus edits to `src/core/{types,diff}.ts` and `src/core/diff.test.ts`.
-- What those changes are intended to do: implement the two tool handlers, the independent-decision state machine with undo, and the deterministic Markdown exports, all as pure functions taking the timestamp as an argument.
-- Are tests/build currently passing: yes — 101 unit tests, typecheck, and lint all pass.
+- Uncommitted files: `src/webmcp/{schemas,register}.ts` + test, `src/app/{store,useClauseBridge}.ts`, `src/app/store.test.ts`, `src/core/demo.ts` + test, `src/components/*`, and `src/app/page.tsx`.
+- What those changes are intended to do: register the exact WebMCP contracts, expose the handlers through an external store, and build the three-part workspace that drives them.
+- Are tests/build currently passing: yes — 132 unit tests, typecheck, lint, and production build all pass.
 - Preview command: `npm run dev`.
-- Last known local preview URL: http://localhost:3000 (observed HTTP 200 at milestone 2).
+- Last known local preview URL: http://localhost:3000 (HTTP 200 observed at milestone 2; browser golden path verified at the verification milestone).
 
 ## Test and build status
 
-- Unit tests: `npm run test` — 101 passed, 0 failed, exit 0 (diff 16, segmentation 21, handlers 23, state 23, exports 18).
+- Unit tests: `npm run test` — 132 passed, 0 failed, exit 0 (diff 16, segmentation 21, handlers 23, state 23, exports 18, register 14, demo 8, store 9).
 - Type checking: `npm run typecheck` — passed, exit 0.
 - Lint: `npm run lint` — passed, exit 0, no findings.
-- Production build: `npm run build` — last run passed at milestone 2; rerun at the verification milestone.
+- Production build: `npm run build` — passed, exit 0; `/` is 24.6 kB, 127 kB first-load JS, statically prerendered.
 - Golden-path verification: not run; the workspace UI does not exist yet.
 
 ## Known non-blocking issues
@@ -80,24 +84,24 @@
 
 ## Next exact action
 
-1. Commit and push milestone 4 as `feat(core): implement deterministic clause workflow`.
-2. Build milestone 5: WebMCP registration (`src/webmcp/`) with exact tool contracts, plus the visibly labeled local handler-test control that calls the same handlers.
-3. Then milestone 6: the three-part workspace UI wiring everything into the golden path.
+1. Commit and push milestone 5 (`feat(webmcp): register ClauseBridge browser tools`) and milestone 6 (`feat(ui): build fictional agreement workspace`).
+2. Milestone 7 — verification: drive the golden path in a real browser, confirm the console has no material runtime errors, and re-run the full check suite.
+3. Milestone 8 — handoff: README, limitations, demo walkthrough, final commit and push, then stop for review.
 
 ## Remaining rough-sketch requirements
 
-- [ ] Polished three-part ClauseBridge workspace with a persistent non-legal-advice disclaimer.
+- [x] Polished three-part ClauseBridge workspace with a persistent non-legal-advice disclaimer.
 - [x] Bundled **Northstar SaaS Services Agreement — Fictional Demo** containing 8–12 clauses.
-- [ ] Role, priority, selection, non-negotiable, focus, revision, and decision controls.
+- [x] Role, priority, selection, non-negotiable, focus, revision, and decision controls.
 - [x] Deterministic seeded and pasted-text clause segmentation with stable IDs and a manual correction path.
 - [x] Fictional local fallback library keyed by clause type and party role.
 - [x] Exact context retrieval with stale/unknown ID rejection and no generated legal language.
-- [ ] Staged three-clause redline package with exact inline diff and original/staged/approved state separation.
+- [x] Staged three-clause redline package with exact inline diff and original/staged/approved state separation.
 - [x] Independent approve, reject, edit, note, and undo actions plus a deterministic decision log.
-- [x] Deterministic negotiation-brief and redlined-Markdown previews/exports (renderers done; UI preview panes pending).
-- [ ] Exact WebMCP tools: `get_negotiation_context` and `stage_redline_package`.
-- [ ] Visibly labeled local handler-test fallback calling the same handlers as WebMCP.
-- [ ] Visible WebMCP status and chronological tool/audit timeline.
+- [x] Deterministic negotiation-brief and redlined-Markdown previews/exports.
+- [x] Exact WebMCP tools: `get_negotiation_context` and `stage_redline_package`.
+- [x] Visibly labeled local handler-test fallback calling the same handlers as WebMCP.
+- [x] Visible WebMCP status and chronological tool/audit timeline.
 - [ ] Required core tests, type/lint/build verification, and error-free golden path.
 - [ ] README covering setup, architecture, tools, demo, fictional data, legal limitations, and remaining scope.
 - [ ] Final verified milestone committed and pushed to the approved GitHub repository.
