@@ -3,9 +3,9 @@
 ## Status
 
 - Current phase: Rough Sketch Checkpoint
-- Current milestone: 1 — workflow and GitHub baseline
-- Overall state: user approved the initial checkpoint; repository initialized locally, baseline being committed
-- Last updated: after initial approval and local `git init`
+- Current milestone: 2 — approved application scaffold
+- Overall state: baseline pushed; dependencies installed; scaffold starts, typechecks, lints, and builds
+- Last updated: after milestone 2 verification, before the milestone 2 commit
 
 ## Approved decisions
 
@@ -28,9 +28,9 @@
 - Repository visibility: public (explicitly confirmed by the user)
 - Remote name: `origin`
 - Target branch: `main`
-- Upstream configured: not yet
-- Last pushed commit: none
-- Local/remote sync: repository not yet created on GitHub
+- Upstream configured: yes — `main` tracks `origin/main`
+- Last pushed commit: `77b27d53ea12f86cb318a4800c81cb1c02c962ce` (`chore: initialize ClauseBridge workflow`)
+- Local/remote sync: verified equal at milestone 1; local HEAD SHA matched `git ls-remote origin refs/heads/main`
 - Authentication: existing `gh` CLI login as `ethanalapatt` (scopes `gist, read:org, repo`), verified via `gh auth status`. No credentials requested, printed, stored, or committed.
 
 ## Completed and verified
@@ -39,23 +39,28 @@
 - [x] Exact GitHub repository target and visibility approved by the user: `ethanalapatt/clausebridge`, public, branch `main`.
 - [x] Local repository initialized on `main` with a repo-local author identity; global config untouched.
 - [x] `.gitignore` created with the protocol's required entries plus Next.js build output.
-- [ ] Baseline committed and pushed to the approved remote.
+- [x] Baseline committed (`77b27d5`) and pushed to `origin/main`; remote SHA verified equal to local HEAD.
+- [x] Dependencies installed with a single `npm install`; scaffold typechecks, lints, builds, and serves HTTP 200 on the dev server.
 
 ## Current working state
 
-- Uncommitted files: `.gitignore`, `CLAUDE_GITHUB_AND_PROGRESS_PROTOCOL.md`, `ClauseBridge_Claude_Code_Brief.md`, `PROGRESS.md` — the baseline set.
-- What those changes are intended to do: establish the tracked workflow documents and ignore rules before any dependency install or code generation.
-- Are tests/build currently passing: not applicable; no application code exists yet.
-- Preview command: not yet established.
-- Last known local preview URL: none.
+- Uncommitted files: `package.json`, `package-lock.json`, `tsconfig.json`, `next.config.ts`, `postcss.config.mjs`, `vitest.config.ts`, `eslint.config.mjs`, `src/app/{layout.tsx,page.tsx,globals.css}`.
+- What those changes are intended to do: stand up the approved Next.js stack with design tokens, and prove the toolchain works before any product code is written.
+- Are tests/build currently passing: typecheck, lint, and production build pass. No unit tests exist yet — the deterministic core lands in milestone 4.
+- Preview command: `npm run dev`.
+- Last known local preview URL: http://localhost:3000 (observed HTTP 200; server then stopped).
 
 ## Test and build status
 
-- Unit tests: not run.
-- Type checking: not run.
-- Lint: not run.
-- Production build: not run.
-- Golden-path verification: not run.
+- Unit tests: none written yet (`vitest` installed and configured, `src/**/*.test.ts`).
+- Type checking: `npm run typecheck` — passed, exit 0.
+- Lint: `npm run lint` — passed, no findings.
+- Production build: `npm run build` — passed; 4 static pages generated, ~103 kB shared first-load JS.
+- Golden-path verification: not run; the workspace does not exist yet.
+
+## Known non-blocking issues
+
+- `npm audit` reports 2 advisories (1 high, 1 moderate) in `postcss`, reached transitively through `next@15.5.24`'s build toolchain. The only offered fix is `next@16`, a breaking upgrade outside the approved stack. It is a build-time dependency that never processes untrusted CSS in this local-only prototype, so the approved stack was left intact and this is recorded as a documented limitation rather than silently upgraded.
 
 ## Blockers and failed attempts
 
@@ -67,10 +72,9 @@
 
 ## Next exact action
 
-1. Stage only the four baseline files and create the commit `chore: initialize ClauseBridge workflow`.
-2. Create the public repository `ethanalapatt/clausebridge` with the GitHub CLI and connect it as `origin`.
-3. Push `main` with upstream tracking, verify the local HEAD SHA equals the remote SHA, and record that SHA here.
-4. Proceed to milestone 2: scaffold the approved Next.js stack, run `npm install`, and confirm the app starts and builds.
+1. Commit and push milestone 2 as `chore: scaffold approved application stack`.
+2. Build milestone 3: the three-part workspace shell, the fictional Northstar agreement, the fallback library, and the role/priority/selection controls.
+3. Then milestone 4: the deterministic clause core (segmentation, stable IDs, retrieval, validation, word-level diff, decisions, undo, exports) with its unit tests.
 
 ## Remaining rough-sketch requirements
 

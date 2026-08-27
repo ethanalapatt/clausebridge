@@ -1,0 +1,103 @@
+@import "tailwindcss";
+
+/*
+ * ClauseBridge design tokens.
+ * Chrome is cool slate; the agreement itself sits on warm paper so the
+ * document reads as the document and the tooling reads as tooling.
+ */
+@theme {
+  /* Chrome */
+  --color-chrome-950: #0b1220;
+  --color-chrome-900: #131c2e;
+  --color-chrome-800: #1e2a41;
+  --color-chrome-700: #2c3b56;
+  --color-chrome-600: #405270;
+
+  /* Ink on light surfaces */
+  --color-ink-900: #0f172a;
+  --color-ink-700: #334155;
+  --color-ink-500: #64748b;
+  --color-ink-400: #94a3b8;
+  --color-ink-200: #e2e8f0;
+  --color-ink-100: #eef2f7;
+  --color-ink-50: #f6f8fb;
+
+  /* Document paper */
+  --color-paper: #fdfcfa;
+  --color-paper-edge: #ece7de;
+
+  /* Brand */
+  --color-bridge-700: #2743b8;
+  --color-bridge-600: #3355d8;
+  --color-bridge-500: #4f74ee;
+  --color-bridge-100: #e5ebfd;
+  --color-bridge-50: #f2f5ff;
+
+  /* Decision semantics */
+  --color-approved-700: #14663f;
+  --color-approved-500: #16a35f;
+  --color-approved-100: #dcf5e8;
+  --color-rejected-700: #a12030;
+  --color-rejected-500: #dc3d51;
+  --color-rejected-100: #fde5e8;
+  --color-edited-700: #91600b;
+  --color-edited-500: #d18f16;
+  --color-edited-100: #fdf0d8;
+  --color-proposed-700: #4b3ba8;
+  --color-proposed-500: #6f5ce0;
+  --color-proposed-100: #ebe7fd;
+
+  /* Diff */
+  --color-diff-ins-bg: #d8f3e4;
+  --color-diff-ins-fg: #0e5433;
+  --color-diff-del-bg: #fbdfe4;
+  --color-diff-del-fg: #8c1f2e;
+
+  --font-sans:
+    ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-serif: ui-serif, Georgia, Cambria, "Times New Roman", Times, serif;
+  --font-mono:
+    ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
+}
+
+html,
+body {
+  height: 100%;
+}
+
+body {
+  background-color: var(--color-ink-50);
+  color: var(--color-ink-900);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Focus ring used across interactive controls. */
+:where(button, a, input, textarea, select, [tabindex]):focus-visible {
+  outline: 2px solid var(--color-bridge-600);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* Clause focus pulse driven by real tool calls, never decorative. */
+@keyframes clause-focus-pulse {
+  0% {
+    box-shadow: 0 0 0 0 rgba(51, 85, 216, 0.42);
+  }
+  70% {
+    box-shadow: 0 0 0 10px rgba(51, 85, 216, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(51, 85, 216, 0);
+  }
+}
+
+.clause-focus-pulse {
+  animation: clause-focus-pulse 1.1s ease-out 2;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .clause-focus-pulse {
+    animation: none;
+  }
+}
