@@ -1,0 +1,22 @@
+node_modules/
+dist/
+build/
+.next/
+out/
+coverage/
+.cache/
+.env
+.env.*
+!.env.example
+*.log
+.claude/
+.tmp/
+tmp/
+.DS_Store
+Thumbs.db
+
+# Next.js / tooling
+next-env.d.ts
+.turbo/
+*.tsbuildinfo
+.vercel/
