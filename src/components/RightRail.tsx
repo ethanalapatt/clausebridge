@@ -161,6 +161,7 @@ function FallbacksTab() {
 }
 
 function RedlinesTab() {
+  const store = useStore();
   const session = useSession();
   const state = session.present;
 
@@ -185,6 +186,8 @@ function RedlinesTab() {
 
       {state.packages.map((pkg) => {
         const edits = state.edits.filter((edit) => edit.packageId === pkg.packageId);
+        const pending = edits.filter((edit) => edit.status === "pending").length;
+
         return (
           <section key={pkg.packageId} className="rounded-md border border-ink-200">
             <header className="border-b border-ink-100 px-3 py-2">
@@ -195,7 +198,44 @@ function RedlinesTab() {
               <p className="mt-0.5 text-[10px] text-ink-400">
                 Staged via {INVOCATION_SOURCE_LABELS[pkg.source]} against {pkg.revisionId} ·{" "}
                 {edits.length} redline(s)
+                {pending > 0 && ` · ${pending} awaiting decision`}
               </p>
+
+              {pending > 0 && (
+                <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+                  <Button
+                    size="sm"
+                    variant="approve"
+                    title={`Approve the ${pending} redline(s) still awaiting a decision`}
+                    onClick={() =>
+                      store.dispatch({
+                        type: "decide-package",
+                        packageId: pkg.packageId,
+                        decision: "approved",
+                      })
+                    }
+                  >
+                    Approve remaining {pending}
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="reject"
+                    title={`Reject the ${pending} redline(s) still awaiting a decision`}
+                    onClick={() =>
+                      store.dispatch({
+                        type: "decide-package",
+                        packageId: pkg.packageId,
+                        decision: "rejected",
+                      })
+                    }
+                  >
+                    Reject remaining {pending}
+                  </Button>
+                  <span className="text-[10px] text-ink-400">
+                    Decisions you have already made are kept.
+                  </span>
+                </div>
+              )}
             </header>
 
             <div className="space-y-2 p-2">
