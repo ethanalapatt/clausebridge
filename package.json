@@ -2,6 +2,7 @@
   "name": "clausebridge",
   "version": "0.1.0",
   "private": true,
+  "license": "MIT",
   "description": "A structured contract-redlining room where a human sets non-negotiables and their browser agent retrieves exact clause context and stages independently approvable redlines via WebMCP. Fictional demo data only; not legal advice.",
   "scripts": {
     "dev": "next dev",
