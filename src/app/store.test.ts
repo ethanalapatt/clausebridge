@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 import { ClauseBridgeStore } from "@/app/store";
 import { buildBaselinePackage, buildContextInput } from "@/core/demo";
 import { exportFilename, renderNegotiationBrief } from "@/core/exports";
+import { deserializeSession } from "@/core/persistence";
 import { canUndo, createInitialState } from "@/core/state";
 
 /**
@@ -192,5 +193,84 @@ describe("ClauseBridgeStore exports and reset", () => {
 
     store.resetDemo();
     expect(listener).toHaveBeenCalled();
+  });
+});
+
+describe("ClauseBridgeStore persistence", () => {
+  function fakeStorage() {
+    const cell: { value: string | null } = { value: null };
+    return {
+      cell,
+      storage: {
+        write: (payload: string) => {
+          cell.value = payload;
+        },
+        clear: () => {
+          cell.value = null;
+        },
+      },
+    };
+  }
+
+  it("writes the session on every change", () => {
+    const { cell, storage } = fakeStorage();
+    const store = new ClauseBridgeStore(undefined, () => {}, storage);
+    expect(cell.value).toBeNull();
+
+    store.dispatch({ type: "set-role", role: "vendor" });
+    expect(cell.value).not.toBeNull();
+    expect(deserializeSession(cell.value)!.present.partyRole).toBe("vendor");
+  });
+
+  it("round-trips staged work through storage into a new store", () => {
+    const { cell, storage } = fakeStorage();
+    const store = new ClauseBridgeStore(undefined, () => {}, storage);
+    store.stageRedlinePackage(
+      buildBaselinePackage(store.getSnapshot().present)!,
+      "local-handler-test",
+    );
+    store.dispatch({ type: "approve-edit", editId: store.getSnapshot().present.edits[0]!.editId });
+
+    const revived = new ClauseBridgeStore(deserializeSession(cell.value)!, () => {}, storage);
+    expect(revived.getSnapshot().present.edits).toEqual(store.getSnapshot().present.edits);
+    expect(revived.getSnapshot().present.packages).toEqual(
+      store.getSnapshot().present.packages,
+    );
+  });
+
+  it("clears storage on reset so the reset survives a reload", () => {
+    const { cell, storage } = fakeStorage();
+    const store = new ClauseBridgeStore(undefined, () => {}, storage);
+    store.stageRedlinePackage(
+      buildBaselinePackage(store.getSnapshot().present)!,
+      "local-handler-test",
+    );
+    expect(cell.value).not.toBeNull();
+
+    store.resetDemo();
+    // Reset clears the payload, then the reset session itself is written back.
+    expect(deserializeSession(cell.value)!.present).toEqual(createInitialState());
+  });
+
+  it("keeps working when storage throws", () => {
+    const exploding = {
+      write: () => {
+        throw new Error("QuotaExceededError");
+      },
+      clear: () => {
+        throw new Error("SecurityError");
+      },
+    };
+    const store = new ClauseBridgeStore(undefined, () => {}, exploding);
+
+    expect(() => store.dispatch({ type: "set-role", role: "vendor" })).not.toThrow();
+    expect(store.getSnapshot().present.partyRole).toBe("vendor");
+    expect(() => store.resetDemo()).not.toThrow();
+    expect(store.getSnapshot().present).toEqual(createInitialState());
+  });
+
+  it("persists nothing when no storage is supplied", () => {
+    const store = new ClauseBridgeStore();
+    expect(() => store.dispatch({ type: "set-role", role: "vendor" })).not.toThrow();
   });
 });

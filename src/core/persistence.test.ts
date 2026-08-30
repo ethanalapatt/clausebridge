@@ -108,18 +108,19 @@ describe("rejecting unusable payloads", () => {
   it("refuses a structurally wrong state instead of spreading it into the app", () => {
     const base = JSON.parse(serializeSession(workedSession()));
 
+    type Loose = { state: Record<string, unknown> };
+    const revisionOf = (e: Loose) => e.state.revision as Record<string, unknown>;
+
     for (const mutate of [
-      (e: Record<string, never>) => delete (e.state as Record<string, unknown>).revision,
-      (e: Record<string, never>) => ((e.state as Record<string, unknown>).edits = "nope"),
-      (e: Record<string, never>) => ((e.state as Record<string, unknown>).activity = {}),
-      (e: Record<string, never>) => ((e.state as Record<string, unknown>).seq = "3"),
-      (e: Record<string, never>) => ((e.state as Record<string, unknown>).partyRole = 7),
-      (e: Record<string, never>) =>
-        ((e.state as Record<string, Record<string, unknown>>).revision.clauses = null),
-      (e: Record<string, never>) =>
-        delete (e.state as Record<string, Record<string, unknown>>).revision.retiredClauseIds,
+      (e: Loose) => delete e.state.revision,
+      (e: Loose) => (e.state.edits = "nope"),
+      (e: Loose) => (e.state.activity = {}),
+      (e: Loose) => (e.state.seq = "3"),
+      (e: Loose) => (e.state.partyRole = 7),
+      (e: Loose) => (revisionOf(e).clauses = null),
+      (e: Loose) => delete revisionOf(e).retiredClauseIds,
     ]) {
-      const envelope = JSON.parse(JSON.stringify(base));
+      const envelope = JSON.parse(JSON.stringify(base)) as Loose;
       mutate(envelope);
       expect(deserializeSession(JSON.stringify(envelope))).toBeNull();
     }

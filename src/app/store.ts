@@ -1,5 +1,6 @@
 import { downloadTextFile } from "@/app/download";
 import { exportFilename, renderExport } from "@/core/exports";
+import { serializeSession } from "@/core/persistence";
 import { getNegotiationContext, stageRedlinePackage } from "@/core/handlers";
 import type {
   NegotiationContextInput,
@@ -34,14 +35,29 @@ function nowIso(): string {
 /** How a rendered export reaches the disk. Injectable so it is testable in Node. */
 export type SaveFile = (filename: string, contents: string) => void;
 
+/**
+ * Where the session is persisted between reloads. Injectable so it is testable
+ * in Node, and optional so the store works with no persistence at all.
+ */
+export interface SessionStorage {
+  write: (payload: string) => void;
+  clear: () => void;
+}
+
 export class ClauseBridgeStore {
   private session: Session;
   private readonly listeners = new Set<() => void>();
   private readonly save: SaveFile;
+  private readonly storage: SessionStorage | null;
 
-  constructor(session: Session = createSession(), save: SaveFile = downloadTextFile) {
+  constructor(
+    session: Session = createSession(),
+    save: SaveFile = downloadTextFile,
+    storage: SessionStorage | null = null,
+  ) {
     this.session = session;
     this.save = save;
+    this.storage = storage;
   }
 
   readonly subscribe = (listener: () => void): (() => void) => {
@@ -56,7 +72,22 @@ export class ClauseBridgeStore {
   private set(next: Session): void {
     if (next === this.session) return;
     this.session = next;
+    this.persist();
     for (const listener of this.listeners) listener();
+  }
+
+  /**
+   * Storage is best-effort. Quota exhaustion, a disabled store, or private
+   * browsing must degrade to an unsaved session rather than break the app
+   * mid-decision, so a failure here is swallowed deliberately.
+   */
+  private persist(): void {
+    if (this.storage === null) return;
+    try {
+      this.storage.write(serializeSession(this.session));
+    } catch {
+      // Intentionally ignored: persistence is a convenience, not a guarantee.
+    }
   }
 
   readonly dispatch = (action: Action): void => {
@@ -71,8 +102,20 @@ export class ClauseBridgeStore {
     this.dispatch({ type: "set-webmcp-status", status });
   };
 
-  /** Restores the exact seeded starting state and clears the undo history. */
+  /**
+   * Restores the exact seeded starting state and clears the undo history.
+   *
+   * The stored payload is dropped first, so a reset survives a reload rather
+   * than being undone by a stale restore.
+   */
   readonly resetDemo = (): void => {
+    if (this.storage !== null) {
+      try {
+        this.storage.clear();
+      } catch {
+        // See persist(): storage failures never block the reset itself.
+      }
+    }
     this.set(resetSession(this.session));
   };
 
