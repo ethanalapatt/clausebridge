@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 
 import { stageRedlinePackage } from "@/core/handlers";
 import type { HandlerContext } from "@/core/handlers";
+import { planMigration } from "@/core/migration";
 import { toDraft } from "@/core/segmentation";
 import {
   applyAction,
@@ -505,5 +506,43 @@ describe("resetSession", () => {
     });
     expect(reset.present.activity).toEqual([]);
     expect(reset.present.seq).toBe(0);
+  });
+});
+
+describe("migrate-edits", () => {
+  it("carries a stranded redline into the active revision and logs it", () => {
+    const base = createInitialState();
+    const liability = base.revision.clauses.find((c) => c.clauseType === "liability")!.id;
+
+    const staged = stageRedlinePackage(
+      base,
+      {
+        packageLabel: "Baseline",
+        edits: [
+          {
+            clauseId: liability,
+            replacementText: "A different fictional liability allocation applies.",
+            rationale: "demo",
+            priorityTag: "required",
+          },
+        ],
+      },
+      { source: "local-handler-test", at: AT },
+    );
+
+    const drafts = staged.state.revision.clauses.map(toDraft);
+    const revised = reduce(staged.state, { type: "revise-document", drafts, label: "r" }, AT);
+    expect(isEditStale(revised, revised.edits[0]!)).toBe(true);
+
+    const plan = planMigration(revised);
+    const migrated = reduce(revised, { type: "migrate-edits", candidates: plan.candidates }, AT);
+
+    expect(isEditStale(migrated, migrated.edits[0]!)).toBe(false);
+    expect(migrated.activity.at(-1)!.summary).toContain("Carried 1 staged redline");
+  });
+
+  it("changes nothing when there is nothing to migrate", () => {
+    const state = createInitialState();
+    expect(reduce(state, { type: "migrate-edits", candidates: [] }, AT)).toBe(state);
   });
 });

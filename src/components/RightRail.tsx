@@ -16,6 +16,7 @@ import {
   cx,
 } from "@/components/ui";
 import { exportFilename, renderExport } from "@/core/exports";
+import { planMigration } from "@/core/migration";
 import { FALLBACK_LIBRARY } from "@/core/seed/fallbackLibrary";
 import { canUndo, findClause, isEditStale, undoLabel } from "@/core/state";
 import { CLAUSE_TYPE_LABELS, INVOCATION_SOURCE_LABELS } from "@/core/types";
@@ -174,6 +175,8 @@ function RedlinesTab() {
 
   return (
     <div className="space-y-3">
+      <StaleRedlineNotice />
+
       <p className="rounded-md border border-ink-200 bg-ink-50 px-3 py-2 text-[11px] leading-relaxed text-ink-700">
         Staging changes nothing on its own. Every redline below is decided on its own — approve it,
         rewrite it in your own words, or reject it — and the approved agreement only reflects what
@@ -210,6 +213,78 @@ function RedlinesTab() {
           </section>
         );
       })}
+    </div>
+  );
+}
+
+/**
+ * Offers to carry redlines stranded by a revision into the active one.
+ *
+ * Nothing migrates on its own: the proposals are shown with their evidence and
+ * the human confirms, because a wrong match would point a proposal at wording it
+ * was never drafted against.
+ */
+function StaleRedlineNotice() {
+  const store = useStore();
+  const session = useSession();
+  const state = session.present;
+
+  const plan = useMemo(() => planMigration(state), [state]);
+  const staleCount = state.edits.filter((edit) => isEditStale(state, edit)).length;
+
+  if (staleCount === 0) return null;
+
+  return (
+    <div className="rounded-md border border-edited-500 bg-edited-100 p-3 text-[11px] leading-relaxed text-edited-700">
+      <div className="mb-1.5 flex flex-wrap items-center gap-1.5">
+        <Chip tone="warning">
+          {staleCount} redline{staleCount === 1 ? "" : "s"} stranded by a revision
+        </Chip>
+      </div>
+
+      {plan.candidates.length === 0 ? (
+        <p>
+          None of them matches a clause in {state.revision.revisionId} closely enough to move
+          automatically. They stay stale and are excluded from the redlined export.
+        </p>
+      ) : (
+        <>
+          <p>
+            {plan.candidates.length} can be carried into {state.revision.revisionId}. Each one
+            returns to <strong>awaiting decision</strong> and is re-diffed against the clause&apos;s
+            current text.
+          </p>
+          <ul className="mt-1.5 space-y-1">
+            {plan.candidates.map((candidate) => (
+              <li key={candidate.editId} className="flex flex-wrap items-center gap-1.5">
+                <Mono>{candidate.fromClauseId}</Mono>
+                <span aria-hidden>→</span>
+                <span className="sr-only">moves to</span>
+                <Mono>{candidate.toClauseId}</Mono>
+                <span className="text-ink-700">{candidate.toClauseTitle}</span>
+                <Chip tone={candidate.confidence === "exact-text" ? "approved" : "warning"}>
+                  {candidate.confidence === "exact-text"
+                    ? "identical text"
+                    : "title match — text differs"}
+                </Chip>
+              </li>
+            ))}
+          </ul>
+          <Button
+            size="sm"
+            className="mt-2"
+            onClick={() => store.dispatch({ type: "migrate-edits", candidates: plan.candidates })}
+          >
+            Carry {plan.candidates.length} redline{plan.candidates.length === 1 ? "" : "s"} over
+          </Button>
+        </>
+      )}
+
+      {plan.unmatchedEditIds.length > 0 && plan.candidates.length > 0 && (
+        <p className="mt-1.5">
+          {plan.unmatchedEditIds.length} has no confident match and stays stale.
+        </p>
+      )}
     </div>
   );
 }

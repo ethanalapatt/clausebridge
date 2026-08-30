@@ -1,3 +1,5 @@
+import { applyMigration } from "@/core/migration";
+import type { MigrationCandidate } from "@/core/migration";
 import { buildSeedRevision, reviseDocument, segmentPastedText } from "@/core/segmentation";
 import type { ClauseDraft } from "@/core/segmentation";
 import type {
@@ -155,6 +157,7 @@ export type Action =
   | { type: "reset-edit"; editId: string }
   | { type: "set-note"; editId: string; note: string | null }
   | { type: "apply-demo-setup"; setup: DemoSetup; label: string }
+  | { type: "migrate-edits"; candidates: readonly MigrationCandidate[] }
   | { type: "record-export"; kind: ExportKind; filename: string }
   | { type: "set-webmcp-status"; status: WebMcpStatus };
 
@@ -441,6 +444,20 @@ export function reduce(state: AppState, action: Action, at: string): AppState {
       );
     }
 
+    case "migrate-edits": {
+      const outcome = applyMigration(state, action.candidates);
+      if (outcome.migratedEditIds.length === 0) return state;
+
+      return withActivity(outcome.state, at, {
+        source: "ui",
+        kind: "document",
+        summary: `Carried ${outcome.migratedEditIds.length} staged redline(s) into ${state.revision.revisionId}`,
+        detail:
+          "Each migrated redline was returned to awaiting decision and re-diffed against the " +
+          "current clause text.",
+      });
+    }
+
     case "record-export":
       return withActivity(state, at, {
         source: "ui",
@@ -558,6 +575,8 @@ function describeAction(state: AppState, action: Action): string {
       return `note on ${describeEdit(state, action.editId)}`;
     case "apply-demo-setup":
       return action.label.toLowerCase();
+    case "migrate-edits":
+      return "carry staged redlines into this revision";
     case "focus-clause":
     case "record-export":
     case "set-webmcp-status":
