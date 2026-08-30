@@ -70,8 +70,8 @@ actually run — nothing there is scripted.
    (change the wording and save), **Reject** on *Limitation of Liability*, and add a note. The same
    controls are in the right rail's **Redlines** and **Decisions** tabs.
 6. Open the **Export** tab, or **Preview & export** in the header, and press **Download .md** for the
-   negotiation brief and the redlined agreement. The **Activity** tab shows the whole chronological
-   audit trail.
+   negotiation brief and the redlined agreement. The **Changes** tab shows what you have agreed to
+   across the whole document; **Activity** shows the chronological audit trail.
 
 `↶ Undo` in the header steps back one decision at a time. **Reset demo** restores the exact seeded
 starting state and clears the log and the undo stack.
@@ -221,9 +221,11 @@ Deliberately **not** built, and not planned for this checkpoint:
 
 `npm run verify` runs all of it. As of the current commit:
 
-- **162 unit and integration tests pass** across segmentation, stable/stale IDs, diff, handler
-  validation, decision transitions, undo, reset, exports and export filenames, registration, the demo
-  builder and checklist, the store, and the full golden path end to end.
+- **204 unit and integration tests pass** across segmentation, stable/stale IDs, diff, handler
+  validation, decision transitions, undo, reset, bulk package decisions, persistence and its
+  rejection of corrupt payloads, redline migration across revisions, whole-document comparison,
+  exports and export filenames, registration, the demo builder and checklist, the store, and the full
+  golden path end to end.
 - **Typecheck**, **lint**, and **production build** pass with no findings.
 - `src/app/goldenPath.test.ts` drives the brief's ten-step walkthrough through the same store the UI
   and WebMCP both call, asserting that the source agreement stays byte-identical throughout, that a

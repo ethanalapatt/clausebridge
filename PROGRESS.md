@@ -3,9 +3,9 @@
 ## Status
 
 - Current phase: **Complete Local MVP** (per `do this one.md`, the latest and highest-priority instruction)
-- Current milestone: 8 — local review handoff. Milestones 1–7 complete.
-- Overall state: every gap in the milestone-1 list below is closed and verified. `npm run verify` exits 0 with 162 tests. The loopback preview is running and awaiting the user's visual review.
-- Last updated: at the local review handoff
+- Current milestone: post-MVP backlog work, on the user's instruction to keep building.
+- Overall state: the local MVP is complete and published. A follow-on pass cleared seven backlog items — persistence, redline migration, bulk decisions, focus trap, keyboard shortcuts, cross-revision comparison, and the license. `npm run verify` exits 0 with **204 tests**.
+- Last updated: after the backlog pass
 
 ## Authority for this run
 
@@ -136,6 +136,33 @@ Running `npm run verify` while `next dev` was live broke the running dev server:
 ## Pre-existing LAN-facing server — needs the user's decision
 
 `lsof` shows a second, **stale `next-server` (PID 5419, started Thu Aug 27 15:12:56 2026)** still listening on `*:3000` — that is all interfaces, i.e. LAN-facing. It was started by the earlier session, not by this run. This run did not open it and will not kill a process the user started. Because it made port 3000 ambiguous, this run's preview was moved to loopback-only port 3100. **Recommended: the user stops PID 5419** (`kill 5419`) since it is both LAN-exposed and serving stale code.
+
+## Backlog pass — completed after the MVP handoff
+
+The user asked for more commits and chose real backlog work over padding the count. Each item below
+is a self-contained commit that typechecks, lints, and passes tests.
+
+| Commit | Work |
+| --- | --- |
+| `587c926` | MIT license — the repo was public with no license, leaving reuse terms undefined. |
+| `2923e74` | Versioned session serialization. `localStorage` is user-writable and outlives deploys, so a payload that is absent, unparseable, version-mismatched, or structurally wrong is rejected rather than spread into live state. The undo stack is deliberately not persisted. |
+| `9829496` | Store persistence, best-effort by contract: quota exhaustion or blocked site data degrades to an unsaved session instead of breaking mid-decision. |
+| `d02f71d` | Restore-on-reload, hydrating post-mount so the first client paint still matches the server markup, with an explicit "Keep working / Start fresh" banner. |
+| `465f30e` | Redline migration across revisions. Conservative by design: only an exact text match moves automatically, one target per edit, and migrating resets the decision to pending. |
+| `40299e7` | Migration UI — proposals shown with their evidence; the human confirms. |
+| `2c0ae50` | Package-level bulk approve/reject that only moves still-pending proposals, so it can never overwrite a decision already made. |
+| `b5ed46a` | Bulk-action controls in the package header. |
+| `5654f66` | Focus trap in the export dialog — tabbing past the last control previously walked into the page behind the overlay. |
+| `66c902f` | Keyboard shortcuts (A/R/U), inert while typing so a letter in a textarea cannot approve a redline. |
+| `40db9ca` | Whole-document comparison against the original, counting approved changes only. |
+| `11487b7` | Changes tab surfacing that comparison. |
+
+Test count went 162 → **204**. New suites: `persistence.test.ts` (10), `migration.test.ts` (10),
+`revisionDiff.test.ts` (8), plus additions to `state.test.ts` and `store.test.ts`.
+
+One defect was caught and fixed mid-pass: the mutator typing in `persistence.test.ts` passed under
+vitest, which does not typecheck, but failed `tsc`. Fixed in `9829496`. Running `tsc` alongside
+vitest between commits, not just at the end, would have caught it sooner.
 
 ## Known non-blocking issues
 
