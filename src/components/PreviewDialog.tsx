@@ -24,18 +24,64 @@ export function PreviewDialog({ onClose }: { onClose: () => void }) {
   const store = useStore();
   const session = useSession();
   const closeRef = useRef<HTMLButtonElement>(null);
+  const dialogRef = useRef<HTMLDivElement>(null);
 
   const markdown = useMemo(() => renderExport(session.present, kind), [kind, session]);
   const filename = exportFilename(session.present, kind);
 
-  // Escape closes, and focus starts inside the dialog rather than behind it.
+  /**
+   * Modal focus management: Escape closes, focus starts inside, Tab is trapped,
+   * and the trigger gets focus back on close.
+   *
+   * Without the trap, tabbing past the last control walks into the page behind
+   * the overlay — which is inert to the mouse but not to the keyboard, so a
+   * keyboard user ends up interacting with content they cannot see.
+   */
   useEffect(() => {
+    const previouslyFocused = document.activeElement as HTMLElement | null;
     closeRef.current?.focus();
-    function onKeyDown(event: KeyboardEvent) {
-      if (event.key === "Escape") onClose();
+
+    function focusable(): HTMLElement[] {
+      const root = dialogRef.current;
+      if (root === null) return [];
+      return Array.from(
+        root.querySelectorAll<HTMLElement>(
+          'button:not([disabled]), [href], input:not([disabled]), textarea:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])',
+        ),
+      ).filter((node) => node.offsetParent !== null || node === document.activeElement);
     }
+
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        onClose();
+        return;
+      }
+      if (event.key !== "Tab") return;
+
+      const nodes = focusable();
+      if (nodes.length === 0) return;
+
+      const first = nodes[0]!;
+      const last = nodes[nodes.length - 1]!;
+      const active = document.activeElement;
+
+      // Wrap at both ends, and pull focus back in if it has already escaped.
+      if (event.shiftKey && (active === first || !dialogRef.current?.contains(active))) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && (active === last || !dialogRef.current?.contains(active))) {
+        event.preventDefault();
+        first.focus();
+      }
+    }
+
     window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
+    return () => {
+      window.removeEventListener("keydown", onKeyDown);
+      // Returning focus to the trigger keeps keyboard position from resetting
+      // to the top of the document.
+      previouslyFocused?.focus?.();
+    };
   }, [onClose]);
 
   async function copy() {
@@ -61,6 +107,7 @@ export function PreviewDialog({ onClose }: { onClose: () => void }) {
       }}
     >
       <div
+        ref={dialogRef}
         role="dialog"
         aria-modal="true"
         aria-label="Preview and export"
