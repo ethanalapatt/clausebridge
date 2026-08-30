@@ -158,6 +158,7 @@ export type Action =
   | { type: "set-note"; editId: string; note: string | null }
   | { type: "apply-demo-setup"; setup: DemoSetup; label: string }
   | { type: "migrate-edits"; candidates: readonly MigrationCandidate[] }
+  | { type: "decide-package"; packageId: string; decision: "approved" | "rejected" }
   | { type: "record-export"; kind: ExportKind; filename: string }
   | { type: "set-webmcp-status"; status: WebMcpStatus };
 
@@ -458,6 +459,33 @@ export function reduce(state: AppState, action: Action, at: string): AppState {
       });
     }
 
+    case "decide-package": {
+      const pkg = state.packages.find((item) => item.packageId === action.packageId);
+      if (pkg === undefined) return state;
+
+      // Only undecided proposals move. A bulk action is a shortcut for the
+      // remaining work, never a way to silently overwrite a call the human
+      // already made on an individual redline.
+      const targets = state.edits.filter(
+        (edit) => edit.packageId === action.packageId && edit.status === "pending",
+      );
+      if (targets.length === 0) return state;
+
+      const targetIds = new Set(targets.map((edit) => edit.editId));
+      const edits = state.edits.map((edit) =>
+        targetIds.has(edit.editId)
+          ? { ...edit, status: action.decision, humanText: null }
+          : edit,
+      );
+
+      return withActivity({ ...state, edits }, at, {
+        source: "ui",
+        kind: "decision",
+        summary: `${action.decision === "approved" ? "Approved" : "Rejected"} ${targets.length} undecided redline(s) in “${pkg.packageLabel}”`,
+        detail: "Redlines already approved, edited or rejected were left as they were.",
+      });
+    }
+
     case "record-export":
       return withActivity(state, at, {
         source: "ui",
@@ -577,6 +605,8 @@ function describeAction(state: AppState, action: Action): string {
       return action.label.toLowerCase();
     case "migrate-edits":
       return "carry staged redlines into this revision";
+    case "decide-package":
+      return `${action.decision === "approved" ? "approve" : "reject"} remaining redlines in package`;
     case "focus-clause":
     case "record-export":
     case "set-webmcp-status":

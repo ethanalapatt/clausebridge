@@ -546,3 +546,108 @@ describe("migrate-edits", () => {
     expect(reduce(state, { type: "migrate-edits", candidates: [] }, AT)).toBe(state);
   });
 });
+
+describe("decide-package", () => {
+  function threeStaged() {
+    const base = createInitialState();
+    const ids = ["liability", "termination", "data_retention"].map(
+      (t) => base.revision.clauses.find((c) => c.clauseType === t)!.id,
+    );
+    const staged = stageRedlinePackage(
+      base,
+      {
+        packageLabel: "Customer Baseline",
+        edits: ids.map((clauseId, i) => ({
+          clauseId,
+          replacementText: `Fictional replacement ${i}.`,
+          rationale: `reason ${i}`,
+          priorityTag: "preferred" as const,
+        })),
+      },
+      { source: "local-handler-test", at: AT },
+    );
+    return { state: staged.state, packageId: staged.state.packages[0]!.packageId };
+  }
+
+  it("approves every undecided redline in the package", () => {
+    const { state, packageId } = threeStaged();
+    const next = reduce(state, { type: "decide-package", packageId, decision: "approved" }, AT);
+
+    expect(next.edits.every((edit) => edit.status === "approved")).toBe(true);
+    expect(next.activity.at(-1)!.summary).toContain("Approved 3 undecided redline(s)");
+    expect(next.activity.at(-1)!.summary).toContain("Customer Baseline");
+  });
+
+  it("rejects every undecided redline in the package", () => {
+    const { state, packageId } = threeStaged();
+    const next = reduce(state, { type: "decide-package", packageId, decision: "rejected" }, AT);
+
+    expect(next.edits.every((edit) => edit.status === "rejected")).toBe(true);
+  });
+
+  it("never overwrites a decision the human already made", () => {
+    const { state, packageId } = threeStaged();
+    const first = state.edits[0]!.editId;
+    const second = state.edits[1]!.editId;
+
+    let next = reduce(state, { type: "reject-edit", editId: first }, AT);
+    next = reduce(next, { type: "edit-replacement", editId: second, text: "my wording" }, AT);
+    next = reduce(next, { type: "decide-package", packageId, decision: "approved" }, AT);
+
+    expect(next.edits.find((e) => e.editId === first)!.status).toBe("rejected");
+    expect(next.edits.find((e) => e.editId === second)!.status).toBe("edited");
+    expect(next.edits.find((e) => e.editId === second)!.humanText).toBe("my wording");
+    // Only the one remaining pending redline was approved.
+    expect(next.edits.filter((e) => e.status === "approved")).toHaveLength(1);
+    expect(next.activity.at(-1)!.summary).toContain("Approved 1 undecided");
+  });
+
+  it("leaves other packages alone", () => {
+    const { state, packageId } = threeStaged();
+    const second = stageRedlinePackage(
+      state,
+      {
+        packageLabel: "Second",
+        edits: [
+          {
+            clauseId: state.revision.clauses.find((c) => c.clauseType === "payment")!.id,
+            replacementText: "Fictional payment wording.",
+            rationale: "x",
+            priorityTag: "optional",
+          },
+        ],
+      },
+      { source: "local-handler-test", at: AT },
+    ).state;
+
+    const next = reduce(second, { type: "decide-package", packageId, decision: "approved" }, AT);
+    const otherPackageId = second.packages[1]!.packageId;
+
+    expect(
+      next.edits.filter((e) => e.packageId === otherPackageId).every((e) => e.status === "pending"),
+    ).toBe(true);
+  });
+
+  it("changes nothing for an unknown package or one with nothing pending", () => {
+    const { state, packageId } = threeStaged();
+    expect(reduce(state, { type: "decide-package", packageId: "nope", decision: "approved" }, AT)).toBe(state);
+
+    const decided = reduce(state, { type: "decide-package", packageId, decision: "approved" }, AT);
+    expect(reduce(decided, { type: "decide-package", packageId, decision: "approved" }, AT)).toBe(decided);
+  });
+
+  it("is undoable as one step", () => {
+    const { state, packageId } = threeStaged();
+    const session = createSession(state);
+    const bulk = applyAction(session, { type: "decide-package", packageId, decision: "approved" }, AT);
+
+    expect(canUndo(bulk)).toBe(true);
+    expect(undo(bulk, AT).present.edits.every((edit) => edit.status === "pending")).toBe(true);
+  });
+
+  it("leaves the source agreement untouched", () => {
+    const { state, packageId } = threeStaged();
+    const next = reduce(state, { type: "decide-package", packageId, decision: "approved" }, AT);
+    expect(next.revision).toEqual(state.revision);
+  });
+});
