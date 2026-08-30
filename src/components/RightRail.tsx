@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 
 import { useSession, useStore } from "@/app/useClauseBridge";
+import { InlineDiff } from "@/components/InlineDiff";
 import { RedlineCard } from "@/components/RedlineCard";
 import { ToolConsole } from "@/components/ToolConsole";
 import {
@@ -17,12 +18,22 @@ import {
 } from "@/components/ui";
 import { exportFilename, renderExport } from "@/core/exports";
 import { planMigration } from "@/core/migration";
+import { compareRevisions } from "@/core/revisionDiff";
+import { buildSeedRevision } from "@/core/segmentation";
 import { FALLBACK_LIBRARY } from "@/core/seed/fallbackLibrary";
-import { canUndo, findClause, isEditStale, undoLabel } from "@/core/state";
+import { canUndo, effectiveClauseText, findClause, isEditStale, undoLabel } from "@/core/state";
 import { CLAUSE_TYPE_LABELS, INVOCATION_SOURCE_LABELS } from "@/core/types";
 import type { ExportKind } from "@/core/types";
 
-const TABS = ["Tools", "Fallbacks", "Redlines", "Decisions", "Export", "Activity"] as const;
+const TABS = [
+  "Tools",
+  "Fallbacks",
+  "Redlines",
+  "Decisions",
+  "Changes",
+  "Export",
+  "Activity",
+] as const;
 type Tab = (typeof TABS)[number];
 
 /** Pane 3: fallback context, staged redlines, decisions, and tool activity. */
@@ -72,6 +83,7 @@ export function RightRail() {
         {tab === "Fallbacks" && <FallbacksTab />}
         {tab === "Redlines" && <RedlinesTab />}
         {tab === "Decisions" && <DecisionsTab />}
+        {tab === "Changes" && <ChangesTab />}
         {tab === "Export" && <ExportTab />}
         {tab === "Activity" && <ActivityTab />}
       </div>
@@ -460,6 +472,91 @@ function DecisionsTab() {
           </ol>
         )}
       </div>
+    </div>
+  );
+}
+
+/**
+ * Whole-document view of what has actually been agreed, against the wording the
+ * agreement started from. Separate from Redlines, which is per-proposal.
+ */
+function ChangesTab() {
+  const store = useStore();
+  const session = useSession();
+  const state = session.present;
+
+  const comparison = useMemo(
+    () => compareRevisions(state, buildSeedRevision(), (id) => effectiveClauseText(state, id)),
+    [state],
+  );
+  const changed = comparison.clauses.filter((item) => item.kind !== "unchanged");
+
+  return (
+    <div className="space-y-3">
+      <div className="rounded-md border border-ink-200 bg-ink-50 px-3 py-2.5 text-[11px] leading-relaxed text-ink-700">
+        <strong className="font-semibold">Against the original agreement.</strong> Approved changes
+        only — pending and rejected proposals are not counted here. Baseline{" "}
+        <Mono>{comparison.baselineRevisionId}</Mono>, now{" "}
+        <Mono>{comparison.currentRevisionId}</Mono>.
+      </div>
+
+      <div className="flex flex-wrap items-center gap-1.5">
+        <Chip tone={comparison.amendedCount > 0 ? "edited" : "neutral"}>
+          {comparison.amendedCount} amended
+        </Chip>
+        {comparison.addedCount > 0 && <Chip tone="approved">{comparison.addedCount} added</Chip>}
+        {comparison.removedCount > 0 && (
+          <Chip tone="rejected">{comparison.removedCount} removed</Chip>
+        )}
+        {comparison.amendedCount > 0 && (
+          <span className="text-[10px] text-ink-500">
+            +{comparison.totalWordsAdded} / −{comparison.totalWordsRemoved} words
+          </span>
+        )}
+      </div>
+
+      {changed.length === 0 ? (
+        <EmptyState>
+          The agreement is still word-for-word the original. Approve a redline and the change will
+          appear here.
+        </EmptyState>
+      ) : (
+        changed.map((item) => (
+          <div key={item.clauseId} className="rounded-md border border-ink-200 p-3">
+            <div className="flex flex-wrap items-center gap-1.5">
+              <Chip
+                tone={
+                  item.kind === "amended"
+                    ? "edited"
+                    : item.kind === "added"
+                      ? "approved"
+                      : "rejected"
+                }
+              >
+                {item.kind}
+              </Chip>
+              <Mono>{item.clauseId}</Mono>
+            </div>
+            <button
+              type="button"
+              onClick={() => store.dispatch({ type: "focus-clause", clauseId: item.clauseId })}
+              className="mt-1 block text-left text-[11px] font-medium text-ink-900 hover:text-bridge-600"
+            >
+              {item.ordinal}. {item.title}
+            </button>
+
+            {item.kind === "amended" ? (
+              <div className="mt-2 rounded border border-ink-100 bg-ink-50 p-2 text-[11px] leading-relaxed">
+                <InlineDiff before={item.baselineText} after={item.currentText} />
+              </div>
+            ) : (
+              <p className="mt-2 max-h-32 overflow-y-auto whitespace-pre-wrap rounded border border-ink-100 bg-ink-50 p-2 text-[11px] leading-relaxed text-ink-700">
+                {item.kind === "added" ? item.currentText : item.baselineText}
+              </p>
+            )}
+          </div>
+        ))
+      )}
     </div>
   );
 }

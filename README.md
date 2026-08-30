@@ -255,7 +255,6 @@ Not yet done, and not attempted in this local build:
   the production build and server-rendered output.
 - Richer pasted-text segmentation (numbered sub-clauses, definition lists, schedules).
 - Multiple bundled sample agreements and a broader fallback library.
-- Cross-revision redline comparison.
 
 ## License
 
