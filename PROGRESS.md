@@ -2,10 +2,39 @@
 
 ## Status
 
-- Current phase: Rough Sketch Checkpoint
-- Current milestone: 7 and 8 — verification and rough-sketch handoff
-- Overall state: Rough Sketch Checkpoint complete. Golden path verified in Chrome with an empty console; native WebMCP registration verified against an injected document.modelContext; README written
-- Last updated: after the browser verification pass, before the final commit
+- Current phase: **Complete Local MVP** (per `do this one.md`, the latest and highest-priority instruction)
+- Current milestone: 8 — local review handoff. Milestones 1–7 complete.
+- Overall state: every gap in the milestone-1 list below is closed and verified. `npm run verify` exits 0 with 162 tests. The loopback preview is running and awaiting the user's visual review.
+- Last updated: at the local review handoff
+
+## Authority for this run
+
+`do this one.md` supersedes the older briefs for the current run. It upgrades the target from a rough
+sketch to a complete, polished, locally running MVP, and it **revokes all external access**: no
+GitHub, no push/pull/fetch, no Vercel, no APIs, no registries, no web browsing, no filesystem access
+outside this folder. The older instruction files are preserved unchanged, as required. The "GitHub
+state" section below is retained as a factual record of what happened in an earlier run; **no remote
+was contacted in this run and none will be.**
+
+## Milestone 1 audit — factual baseline observed this run
+
+- Git: branch `main`, HEAD `db49ba3`, working tree clean apart from the untracked brief `do this one.md`. No remote contacted.
+- Toolchain present locally: `next` 15.5.24, `react` 19, `typescript` 5.9, `vitest` 3.2, `eslint` 9 + `eslint-config-next`, `tailwindcss` 4. `node_modules` already installed. No install command was run and none will be.
+- Baseline `npm run verify` — **exit 0**: typecheck passed, lint passed with no findings, 132 tests passed across 8 files, production build compiled successfully.
+- Existing code inspected in full: 6,623 lines across `src/core`, `src/webmcp`, `src/app`, `src/components`. The deterministic core (types, segmentation, diff, handlers, state, exports) and the WebMCP registration are complete and well tested; they are preserved, not rebuilt.
+
+### Gap list — what the local MVP still requires
+
+| # | Brief ref | Gap found in the existing sketch |
+| --- | --- | --- |
+| 1 | §7 export engine, §15 | No real browser download. Export dialog could only copy Markdown. |
+| 2 | §5, §9, §10 | No reset control. `load-seed` deliberately kept prior activity/seq, so it did not restore the exact initial state, and it never cleared the undo stack. |
+| 3 | §5 demo guidance | No way to seed the golden-path configuration in one click. |
+| 4 | §5 demo guidance | No in-product checklist or guided demo strip. |
+| 5 | §5 app shell | Narrow screens were not usable: both rails were hidden and replaced with a "use a wider screen" message. |
+| 6 | §5 right panel | Right panel had no decision log distinct from the raw activity timeline. |
+| 7 | §5 right panel | Right panel had no approve / reject / edit / note / undo controls; they existed only in the centre pane. |
+| 8 | §5 right panel | Right panel had no negotiation-brief or redlined-Markdown preview/export entry point. |
 
 ## Approved decisions
 
@@ -22,7 +51,11 @@
 - Approved external actions: use the existing `gh` CLI authentication to create and push to the confirmed ClauseBridge repository. Nothing else external.
 - Still prohibited: unapproved APIs, cloud services, deployment, analytics, authentication, external legal sources, LLM backends, force-pushes, destructive Git, releases, pull requests, GitHub Pages/Actions, or changes outside this folder.
 
-## GitHub state
+## GitHub state — historical record only, NOT touched in this run
+
+> This section records what an earlier run did. `do this one.md` revokes external access, so this run
+> contacted no remote: no push, pull, fetch, `gh` call, or `git ls-remote`. The commits this run
+> created exist **only on this machine** and are ahead of whatever the remote holds.
 
 - Repository URL: https://github.com/ethanalapatt/clausebridge
 - Repository visibility: public (explicitly confirmed by the user)
@@ -59,26 +92,55 @@
 
 ## Current working state
 
-- Uncommitted files: `README.md` and a fix in `src/components/AgreementPane.tsx`.
-- What those changes are intended to do: document the checkpoint, and fix two real bugs the browser pass surfaced (see below).
-- Are tests/build currently passing: yes — `npm run verify` exits 0 (typecheck, lint, 132 tests, production build).
-- Preview command: `npm run dev`.
-- Last known local preview URL: http://localhost:3000 — golden path driven there successfully.
+- Uncommitted files at handoff: `README.md`, `PROGRESS.md`, and `src/app/goldenPath.test.ts` (committed in the final milestone commit below).
+- Preview command used: `npx next dev --hostname 127.0.0.1 --port 3100`.
+- Local preview URL: **http://127.0.0.1:3100** — verified listening on IPv4 loopback only via `lsof -nP -iTCP:3100 -sTCP:LISTEN`.
 
-## Test and build status
+## Milestones 2–7 — what was built this run
 
-- Unit tests: `npm run test` — 132 passed, 0 failed, exit 0 (diff 16, segmentation 21, handlers 23, state 23, exports 18, register 14, demo 8, store 9).
-- Type checking: `npm run typecheck` — passed, exit 0.
-- Lint: `npm run lint` — passed, exit 0, no findings.
-- Production build: `npm run build` — passed, exit 0; `/` is 24.6 kB, 127 kB first-load JS, statically prerendered.
-- Golden-path verification: PASSED in Chrome. Loaded the seed, set role/priorities/locks/selection, ran `get_negotiation_context` (clause focused and scrolled), staged the three-clause Customer Baseline, then approved termination, edited data retention, rejected liability, and added a note. The rejected clause rendered zero diff marks, confirming the source text was untouched. Both export previews rendered. Console contained only React DevTools info — no errors, no hydration warnings.
-- Native WebMCP verification: PASSED against an injected `document.modelContext`. Registered `get_negotiation_context` and `stage_redline_package` with the exact required arrays and `additionalProperties: false`; `execute` returned correct results; `NSA-r1-99` was rejected with `INVALID_CLAUSE_IDS` and no document change; all six resulting activity entries were tagged `native WebMCP`.
+Against the eight-item gap list above, all closed:
+
+1. **Real downloads.** `exportFilename` / `safeSlug` / `renderExport` in `src/core/exports.ts` build deterministic, path-safe names (accent folding, `..` and separator stripping, length cap, non-empty fallback). `src/app/download.ts` saves via a Blob and an object URL — entirely in-tab, no network. Wired into both the header dialog and a new right-rail **Export** tab.
+2. **Reset.** `resetSession` in `src/core/state.ts` returns the exact `createInitialState()` and clears the undo stack, carrying over only `webmcpStatus` (a browser fact, not demo state). Surfaced as a **Try the demo** / **Reset demo** control with an inline two-step confirmation — deliberately not `window.confirm`, which blocks the page and any agent driving it.
+3. **Golden-path seeding.** `goldenPathSetup` in `src/core/demo.ts` plus a new `apply-demo-setup` action that validates every clause ID against the active revision, so a setup built for the seeded agreement cannot attach itself to pasted text.
+4. **Guided demo strip.** `src/components/DemoGuide.tsx`, driven by `goldenPathSteps`. Each tick is derived from real state — a recorded tool *result*, a staged package, a decision actually taken. A rejected tool call does not tick its step.
+5. **Narrow screens.** The three panes become Controls / Agreement / Agent tabs below `lg` instead of being hidden behind a "use a wider screen" notice.
+6. **Decision log.** New right-rail **Decisions** tab: per-redline status, counts, undo, and the chronological list of decision entries, distinct from the raw Activity timeline.
+7. **Decision controls in the review rail.** `RedlineCard` extracted from `AgreementPane` into `src/components/RedlineCard.tsx` and reused, so approve / reject / edit / note / reset appear in both the document and the rail without duplicated logic.
+8. **Export preview in the rail.** The new Export tab previews and downloads both documents.
+
+Also: a dedicated `export` activity kind so the checklist derives from structured state rather than matching log prose; `Button` now forwards refs and takes `aria-label`; the export dialog got `role="dialog"`, Escape-to-close, backdrop dismissal, and initial focus; both tab strips got `role="tablist"` / `aria-selected`.
+
+## Test and build status — observed this run
+
+Final `npm run verify` — **exit 0**:
+
+- Unit and integration tests: **162 passed, 0 failed**, 9 files (diff 16, segmentation 21, handlers 23, state 30, exports 27, register 14, demo 14, store 14, goldenPath 3).
+- Type checking: `tsc --noEmit` passed.
+- Lint: `eslint .` passed, no findings.
+- Production build: passed, `/` statically prerendered, 103 kB shared first-load JS.
+
+New coverage added this run: export filename safety including a hostile `../../../etc/passwd` title; `apply-demo-setup` validation and undo; `record-export` being logged but non-undoable; reset restoring the exact initial state after a full golden path; store-level download naming and content; and `src/app/goldenPath.test.ts`, which drives the brief's ten-step walkthrough through the store and asserts the source agreement stays byte-identical, a rejected redline leaves no diff marks, and repeated identical decisions produce byte-identical exports containing no wall-clock time.
+
+### Checks that did NOT run — recorded as unavailable, not as passes
+
+- **Interactive Chrome golden path and narrow-screen visual check.** The Claude-in-Chrome extension reported `Browser extension is not connected`, so no browser was driven this run. The earlier Chrome pass recorded further down predates the current UI and was not repeated.
+- **Component/DOM tests.** No `jsdom`, `happy-dom`, or `@testing-library` is present in `node_modules`, and installing one is prohibited by this run's sandbox. Component rendering is therefore covered only by the production build and by server-rendered output.
+- **Server-rendered smoke test (this one did run).** `curl http://127.0.0.1:3100/` returns **HTTP 200**, 60,092 bytes, containing the app shell, the persistent "Not legal advice" banner, the guided demo strip, the Try-the-demo control, the seeded Northstar agreement, and the labeled local handler test panel, with no error markers. The dev server log shows zero errors.
+
+## Incident during verification — resolved
+
+Running `npm run verify` while `next dev` was live broke the running dev server: the production build overwrites `.next`, which the dev server was serving from, producing `Could not find the module ... segment-explorer-node.js` and `__webpack_modules__[moduleId] is not a function`, and `GET / 500`. Fixed on the first attempt by stopping the server, deleting `.next` (untracked build output — confirmed against `.gitignore` and `git ls-files`), and restarting. The preview then returned HTTP 200 with zero errors in the log. A warning about this ordering was added to the README.
+
+## Pre-existing LAN-facing server — needs the user's decision
+
+`lsof` shows a second, **stale `next-server` (PID 5419, started Thu Aug 27 15:12:56 2026)** still listening on `*:3000` — that is all interfaces, i.e. LAN-facing. It was started by the earlier session, not by this run. This run did not open it and will not kill a process the user started. Because it made port 3000 ambiguous, this run's preview was moved to loopback-only port 3100. **Recommended: the user stops PID 5419** (`kill 5419`) since it is both LAN-exposed and serving stale code.
 
 ## Known non-blocking issues
 
 - `npm audit` reports 2 advisories (1 high, 1 moderate) in `postcss`, reached transitively through `next@15.5.24`'s build toolchain. The only offered fix is `next@16`, a breaking upgrade outside the approved stack. It is a build-time dependency that never processes untrusted CSS in this local-only prototype, so the approved stack was left intact and this is recorded as a documented limitation rather than silently upgraded.
 
-## Bugs found and fixed during browser verification
+## Bugs found and fixed during the earlier browser verification (previous run)
 
 Both were in `src/components/AgreementPane.tsx` and were only observable in a real browser:
 
@@ -93,36 +155,49 @@ Both were in `src/components/AgreementPane.tsx` and were only observable in a re
 
 ## Blockers and failed attempts
 
-- Blocker: none.
-- Exact failing command: none.
-- Concise error: none.
-- Attempts already made: none.
-- Current hypothesis: not applicable.
+- **Blocker (non-fatal, one item):** the interactive Chrome verification could not run.
+  - Exact failing call: `mcp__claude-in-chrome__tabs_context_mcp`.
+  - Concise error: `Browser extension is not connected.`
+  - Attempts made: one. Not retried, because the fix is outside this sandbox — the user must connect the Claude-in-Chrome extension — and retrying the same call would not change the result.
+  - Next diagnostic: with the extension connected, load http://127.0.0.1:3100, run the six-step guided demo, and inspect the console; then narrow the window to check the pane tabs.
+  - Why this did not stop the run: every other milestone was independently completable, and the golden path's behaviour is covered by `src/app/goldenPath.test.ts` through the same store the UI uses. What remains unverified is **visual** and **console** behaviour only.
+- Secondary, resolved on the first attempt: the `npm run verify` / `next dev` `.next` collision described above.
+- No repair loop hit the three-attempt limit in this run.
 
 ## Next exact action
 
-1. Commit and push the final milestone as `docs: add rough sketch demo and limitations`.
-2. **Stop.** The Rough Sketch Checkpoint is complete; wait for the user's visual and product feedback.
-3. Do not begin the later MVP, hosting, licensing, Devpost materials, or any scope expansion without explicit approval.
+1. **Stop and wait for the user's visual and product review** of http://127.0.0.1:3100.
+2. Decide with the user what to do about the stale LAN-facing `next-server` on PID 5419.
+3. If the user wants the interactive Chrome pass, reconnect the browser extension and re-run the golden path against the current UI.
 
-## Remaining rough-sketch requirements
+## Remaining local MVP requirements
 
-- [x] Polished three-part ClauseBridge workspace with a persistent non-legal-advice disclaimer.
-- [x] Bundled **Northstar SaaS Services Agreement — Fictional Demo** containing 8–12 clauses.
+- [x] Polished three-part workspace with a persistent non-legal-advice disclaimer.
+- [x] Usable narrow-screen behavior (pane tabs below `lg`).
+- [x] Obvious Try the Demo / Reset Demo control restoring the exact seeded state.
+- [x] In-product guided demo checklist derived from real state.
+- [x] Bundled Northstar agreement with 8–12 clauses and a fictional fallback library.
 - [x] Role, priority, selection, non-negotiable, focus, revision, and decision controls.
-- [x] Deterministic seeded and pasted-text clause segmentation with stable IDs and a manual correction path.
-- [x] Fictional local fallback library keyed by clause type and party role.
-- [x] Exact context retrieval with stale/unknown ID rejection and no generated legal language.
-- [x] Staged three-clause redline package with exact inline diff and original/staged/approved state separation.
-- [x] Independent approve, reject, edit, note, and undo actions plus a deterministic decision log.
-- [x] Deterministic negotiation-brief and redlined-Markdown previews/exports.
-- [x] Exact WebMCP tools: `get_negotiation_context` and `stage_redline_package`.
-- [x] Visibly labeled local handler-test fallback calling the same handlers as WebMCP.
-- [x] Visible WebMCP status and chronological tool/audit timeline.
-- [x] Required core tests, type/lint/build verification, and error-free golden path.
-- [x] README covering setup, architecture, tools, demo, fictional data, legal limitations, and remaining scope.
-- [ ] Final verified milestone committed and pushed to the approved GitHub repository.
-- [ ] Local preview left running when possible, followed by a review handoff; do not continue past the rough sketch.
+- [x] Deterministic seeded and pasted-text segmentation with stable IDs and a correction path.
+- [x] Exact context retrieval with stale/unknown ID rejection.
+- [x] Staged redlines with exact inline diffs and original/staged/edited/approved/rejected separation.
+- [x] Independent approve, reject, edit, note, and undo, plus a decision log — in both the document and the review rail.
+- [x] Deterministic negotiation-brief and redlined-Markdown previews **and real local downloads with safe filenames**.
+- [x] Exactly two WebMCP tools, registered when the API exists, with a clearly labeled local handler test calling the same handlers.
+- [x] Required tests, typecheck, lint, and production build passing.
+- [x] README and PROGRESS.md describing the observed state.
+- [ ] Interactive browser golden-path and narrow-screen visual confirmation — **blocked**, browser extension not connected.
+- [ ] User's visual/product review — awaiting the user.
+
+## Later external work — NOT AUTHORIZED IN THIS RUN
+
+None of the following was performed, and none may be without new explicit user instruction. No remote
+was contacted at any point in this run.
+
+- GitHub: no push, pull, fetch, PR, issue, release, or repository-setting change. The local commits below exist only on this machine.
+- Vercel or any other hosting, tunnel, or public URL.
+- Demo video production and Devpost submission.
+- Any external API, LLM backend, package install, or web browsing.
 
 ## Session resume instructions
 
