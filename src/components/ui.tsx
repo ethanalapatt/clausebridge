@@ -1,6 +1,6 @@
 "use client";
 
-import type { ReactNode } from "react";
+import type { ReactNode, Ref } from "react";
 
 import type { DecisionStatus, PriorityTag } from "@/core/types";
 
@@ -57,6 +57,8 @@ export function Button({
   title,
   type = "button",
   className,
+  ref,
+  "aria-label": ariaLabel,
 }: {
   children: ReactNode;
   onClick?: () => void;
@@ -66,6 +68,8 @@ export function Button({
   title?: string;
   type?: "button" | "submit";
   className?: string;
+  ref?: Ref<HTMLButtonElement>;
+  "aria-label"?: string;
 }) {
   const variants: Record<string, string> = {
     default: "border-ink-200 bg-white text-ink-700 hover:bg-ink-50 hover:border-ink-400",
@@ -79,10 +83,12 @@ export function Button({
 
   return (
     <button
+      ref={ref}
       type={type}
       onClick={onClick}
       disabled={disabled}
       title={title}
+      aria-label={ariaLabel}
       className={cx(
         "inline-flex shrink-0 items-center justify-center gap-1.5 rounded-md border font-medium transition-colors",
         size === "sm" ? "px-2 py-1 text-[11px]" : "px-3 py-1.5 text-xs",

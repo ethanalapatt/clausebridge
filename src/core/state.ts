@@ -6,13 +6,16 @@ import type {
   AppState,
   Clause,
   DecisionStatus,
+  DemoSetup,
   DocumentRevision,
+  ExportKind,
   InvocationSource,
   PartyRole,
   StagedEdit,
   ToolName,
   WebMcpStatus,
 } from "@/core/types";
+import { EXPORT_KIND_LABELS } from "@/core/types";
 
 /**
  * Application state and its transitions.
@@ -151,12 +154,17 @@ export type Action =
   | { type: "edit-replacement"; editId: string; text: string }
   | { type: "reset-edit"; editId: string }
   | { type: "set-note"; editId: string; note: string | null }
+  | { type: "apply-demo-setup"; setup: DemoSetup; label: string }
+  | { type: "record-export"; kind: ExportKind; filename: string }
   | { type: "set-webmcp-status"; status: WebMcpStatus };
 
 /** Actions that change nothing a human would want to undo. */
 const NON_UNDOABLE: ReadonlySet<Action["type"]> = new Set([
   "focus-clause",
   "set-webmcp-status",
+  // An export reads state and writes a file; it changes nothing to step back to.
+  // It is still recorded, so the log shows what left the browser.
+  "record-export",
 ]);
 
 export function isUndoable(action: Action): boolean {
@@ -399,6 +407,48 @@ export function reduce(state: AppState, action: Action, at: string): AppState {
       );
     }
 
+    case "apply-demo-setup": {
+      // Only IDs that exist in the active revision are accepted, so a setup built
+      // for the seeded agreement cannot silently attach itself to pasted text.
+      const known = (ids: readonly string[]) =>
+        ids.filter((id) => findClause(state, id) !== null);
+      const selectedClauseIds = known(action.setup.selectedClauseIds);
+      const nonNegotiableClauseIds = known(action.setup.nonNegotiableClauseIds);
+      const priorityAreas = action.setup.priorityAreas
+        .map((area) => area.trim())
+        .filter((area) => area.length > 0);
+
+      return withActivity(
+        {
+          ...state,
+          partyRole: action.setup.partyRole,
+          selectedClauseIds,
+          nonNegotiableClauseIds,
+          priorityAreas,
+          focusedClauseId: null,
+        },
+        at,
+        {
+          source: "ui",
+          kind: "settings",
+          summary: action.label,
+          detail:
+            `Reviewing as ${action.setup.partyRole}. Selected ` +
+            `${selectedClauseIds.length} clause(s); ` +
+            `${nonNegotiableClauseIds.length} marked non-negotiable; ` +
+            `priorities: ${priorityAreas.length > 0 ? priorityAreas.join(", ") : "none"}.`,
+        },
+      );
+    }
+
+    case "record-export":
+      return withActivity(state, at, {
+        source: "ui",
+        kind: "export",
+        summary: `Downloaded the ${EXPORT_KIND_LABELS[action.kind]}`,
+        detail: action.filename,
+      });
+
     case "set-webmcp-status":
       return { ...state, webmcpStatus: action.status };
   }
@@ -434,6 +484,22 @@ export function applyAction(session: Session, action: Action, at: string): Sessi
   if (next === session.present) return session;
   if (!isUndoable(action)) return { ...session, present: next };
   return commit(session, next, describeAction(session.present, action));
+}
+
+/**
+ * Restores the exact seeded starting state and drops the undo history.
+ *
+ * `load-seed` deliberately keeps the activity log so a mid-session document swap
+ * stays auditable. A demo reset is the opposite: it must leave the app
+ * indistinguishable from a fresh load, so the log, the sequence counter and the
+ * undo stack all go too. `webmcpStatus` is carried over because it records what
+ * this *browser* supports, which a reset does not re-detect.
+ */
+export function resetSession(session: Session): Session {
+  return createSession({
+    ...createInitialState(),
+    webmcpStatus: session.present.webmcpStatus,
+  });
 }
 
 export function canUndo(session: Session): boolean {
@@ -490,7 +556,10 @@ function describeAction(state: AppState, action: Action): string {
       return `reset ${describeEdit(state, action.editId)}`;
     case "set-note":
       return `note on ${describeEdit(state, action.editId)}`;
+    case "apply-demo-setup":
+      return action.label.toLowerCase();
     case "focus-clause":
+    case "record-export":
     case "set-webmcp-status":
       return action.type;
   }

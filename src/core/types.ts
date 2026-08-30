@@ -123,6 +123,26 @@ export interface FallbackEntry {
   source: string;
 }
 
+/**
+ * A one-click reviewer configuration: who you are negotiating as, which clauses
+ * the agent may work on, and what cannot move. Built by `src/core/demo.ts` from
+ * the active revision so the reducer needs no knowledge of the demo script.
+ */
+export interface DemoSetup {
+  partyRole: PartyRole;
+  selectedClauseIds: readonly string[];
+  nonNegotiableClauseIds: readonly string[];
+  priorityAreas: readonly string[];
+}
+
+/** Which deterministic Markdown document an export produced. */
+export type ExportKind = "brief" | "redline";
+
+export const EXPORT_KIND_LABELS: Readonly<Record<ExportKind, string>> = {
+  brief: "negotiation brief",
+  redline: "redlined agreement",
+};
+
 export type DecisionStatus = "pending" | "approved" | "rejected" | "edited";
 
 export const DECISION_STATUS_LABELS: Readonly<Record<DecisionStatus, string>> = {
@@ -177,6 +197,7 @@ export type ActivityKind =
   | "decision"
   | "document"
   | "settings"
+  | "export"
   | "webmcp";
 
 export type ToolName = "get_negotiation_context" | "stage_redline_package";

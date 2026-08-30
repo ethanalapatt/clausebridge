@@ -1,13 +1,16 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
-import { useSession } from "@/app/useClauseBridge";
+import { useSession, useStore } from "@/app/useClauseBridge";
 import { Button, cx } from "@/components/ui";
-import { renderNegotiationBrief, renderRedlinedMarkdown } from "@/core/exports";
+import { exportFilename, renderExport } from "@/core/exports";
+import type { ExportKind } from "@/core/types";
 
-const VIEWS = ["Negotiation brief", "Redlined Markdown"] as const;
-type View = (typeof VIEWS)[number];
+const VIEWS: readonly { kind: ExportKind; label: string }[] = [
+  { kind: "brief", label: "Negotiation brief" },
+  { kind: "redline", label: "Redlined Markdown" },
+];
 
 /**
  * Deterministic export previews. Both are rendered from state by pure functions
@@ -15,17 +18,25 @@ type View = (typeof VIEWS)[number];
  * document.
  */
 export function PreviewDialog({ onClose }: { onClose: () => void }) {
-  const [view, setView] = useState<View>("Negotiation brief");
+  const [kind, setKind] = useState<ExportKind>("brief");
   const [copied, setCopied] = useState(false);
+  const [saved, setSaved] = useState<string | null>(null);
+  const store = useStore();
   const session = useSession();
+  const closeRef = useRef<HTMLButtonElement>(null);
 
-  const markdown = useMemo(
-    () =>
-      view === "Negotiation brief"
-        ? renderNegotiationBrief(session.present)
-        : renderRedlinedMarkdown(session.present),
-    [view, session],
-  );
+  const markdown = useMemo(() => renderExport(session.present, kind), [kind, session]);
+  const filename = exportFilename(session.present, kind);
+
+  // Escape closes, and focus starts inside the dialog rather than behind it.
+  useEffect(() => {
+    closeRef.current?.focus();
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") onClose();
+    }
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [onClose]);
 
   async function copy() {
     try {
@@ -38,39 +49,75 @@ export function PreviewDialog({ onClose }: { onClose: () => void }) {
     }
   }
 
+  function download() {
+    setSaved(store.downloadExport(kind));
+  }
+
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-chrome-950/60 p-4">
-      <div className="flex max-h-[88vh] w-full max-w-4xl flex-col overflow-hidden rounded-xl bg-white shadow-2xl">
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-chrome-950/60 p-4"
+      onClick={(event) => {
+        if (event.target === event.currentTarget) onClose();
+      }}
+    >
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-label="Preview and export"
+        className="flex max-h-[88vh] w-full max-w-4xl flex-col overflow-hidden rounded-xl bg-white shadow-2xl"
+      >
         <header className="flex flex-wrap items-center gap-3 border-b border-ink-200 px-5 py-3">
           <h2 className="text-sm font-semibold text-ink-900">Preview &amp; export</h2>
 
-          <div className="flex gap-1">
+          <div role="tablist" aria-label="Export document" className="flex gap-1">
             {VIEWS.map((item) => (
               <button
-                key={item}
+                key={item.kind}
                 type="button"
-                onClick={() => setView(item)}
+                role="tab"
+                aria-selected={kind === item.kind}
+                onClick={() => {
+                  setKind(item.kind);
+                  setSaved(null);
+                }}
                 className={cx(
                   "rounded-md px-2.5 py-1 text-[11px] font-medium transition-colors",
-                  view === item
+                  kind === item.kind
                     ? "bg-chrome-950 text-white"
                     : "text-ink-500 hover:bg-ink-100 hover:text-ink-900",
                 )}
               >
-                {item}
+                {item.label}
               </button>
             ))}
           </div>
 
-          <div className="ml-auto flex gap-2">
+          <div className="ml-auto flex flex-wrap gap-2">
+            <Button size="sm" variant="primary" onClick={download} title={`Save ${filename}`}>
+              Download .md
+            </Button>
             <Button size="sm" onClick={copy}>
               {copied ? "Copied" : "Copy Markdown"}
             </Button>
-            <Button size="sm" variant="ghost" onClick={onClose}>
+            <Button size="sm" variant="ghost" onClick={onClose} ref={closeRef}>
               Close
             </Button>
           </div>
         </header>
+
+        <p className="border-b border-ink-100 bg-ink-50 px-5 py-2 text-[10px] text-ink-500" role="status">
+          {saved === null ? (
+            <>
+              Rendered from the current state by a pure function — no clock, no network. Saves as{" "}
+              <span className="font-mono text-ink-700">{filename}</span>.
+            </>
+          ) : (
+            <>
+              Saved <span className="font-mono text-ink-700">{saved}</span> to your browser&apos;s
+              downloads.
+            </>
+          )}
+        </p>
 
         <div className="min-h-0 flex-1 overflow-auto bg-ink-50 p-5">
           <pre className="whitespace-pre-wrap break-words rounded-lg border border-ink-200 bg-white p-4 font-mono text-[11px] leading-relaxed text-ink-900">

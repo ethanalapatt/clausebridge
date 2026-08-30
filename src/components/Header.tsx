@@ -1,5 +1,7 @@
 "use client";
 
+import { useEffect, useRef, useState } from "react";
+
 import { useSession, useStore } from "@/app/useClauseBridge";
 import { Button, Chip, cx } from "@/components/ui";
 import { canUndo, undoLabel } from "@/core/state";
@@ -72,6 +74,38 @@ export function Header({ onOpenPreview }: { onOpenPreview: () => void }) {
   const state = session.present;
   const pendingUndo = undoLabel(session);
 
+  // The reset throws away real decisions, so it confirms first — but only once
+  // there is something to lose. On a fresh load it is simply the "start here"
+  // button and should not nag.
+  const hasWork =
+    state.activity.length > 0 || state.packages.length > 0 || canUndo(session);
+
+  // Confirmation is inline rather than `window.confirm`: a native modal blocks
+  // the page, including any agent driving it.
+  const [confirming, setConfirming] = useState(false);
+  const timer = useRef<number | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (timer.current !== null) window.clearTimeout(timer.current);
+    };
+  }, []);
+
+  function armOrReset() {
+    if (!hasWork) {
+      store.resetDemo();
+      return;
+    }
+    if (confirming) {
+      if (timer.current !== null) window.clearTimeout(timer.current);
+      setConfirming(false);
+      store.resetDemo();
+      return;
+    }
+    setConfirming(true);
+    timer.current = window.setTimeout(() => setConfirming(false), 5000);
+  }
+
   return (
     <header className="border-b border-chrome-700 bg-chrome-950 text-white">
       <div className="flex flex-wrap items-center gap-x-5 gap-y-3 px-5 py-3">
@@ -83,7 +117,28 @@ export function Header({ onOpenPreview }: { onOpenPreview: () => void }) {
           </span>
         </div>
 
-        <div className="ml-auto flex items-center gap-2">
+        <div className="ml-auto flex flex-wrap items-center gap-2">
+          <Button
+            size="sm"
+            onClick={armOrReset}
+            title={
+              hasWork
+                ? "Clear all staged redlines, decisions and history, and reload the fictional agreement"
+                : "Load the fictional agreement and start the guided demo"
+            }
+            className={cx(
+              confirming
+                ? "!border-rejected-500 !bg-rejected-500 !text-white hover:!bg-rejected-700"
+                : "!border-chrome-700 !bg-chrome-800 !text-white hover:!bg-chrome-700",
+            )}
+          >
+            {confirming ? "Confirm reset" : hasWork ? "Reset demo" : "Try the demo"}
+          </Button>
+          {confirming && (
+            <span role="status" className="text-[10px] text-chrome-600">
+              Clears every staged redline and decision.
+            </span>
+          )}
           <Button
             variant="ghost"
             size="sm"

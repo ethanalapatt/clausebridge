@@ -8,7 +8,7 @@ import {
   isNonNegotiable,
   isSelected,
 } from "@/core/state";
-import type { AppState, StagedEdit } from "@/core/types";
+import type { AppState, ExportKind, StagedEdit } from "@/core/types";
 import { DECISION_STATUS_LABELS, INVOCATION_SOURCE_LABELS } from "@/core/types";
 
 /**
@@ -228,4 +228,44 @@ export function renderRedlinedMarkdown(state: AppState): string {
   }
 
   return lines.join("\n");
+}
+
+// ----------------------------------------------------------------- filenames
+
+/**
+ * Reduces arbitrary text to a filename-safe slug.
+ *
+ * A document title is user-supplied — pasted agreements can be titled anything —
+ * so this is deliberately strict rather than clever: ASCII alphanumerics and
+ * single hyphens only. That rules out path separators, leading dots, Windows
+ * reserved characters, and trailing dots or spaces in one pass.
+ */
+export function safeSlug(value: string, fallback = "document"): string {
+  const slug = value
+    .normalize("NFKD")
+    // Strip combining marks so "Résumé" slugs to "resume", not "rsum".
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 60)
+    .replace(/-+$/g, "");
+  return slug.length > 0 ? slug : fallback;
+}
+
+/**
+ * Deterministic download filename. It carries the revision rather than a
+ * timestamp, so re-exporting the same decisions overwrites rather than piling up
+ * near-identical files, and the name still says which revision it describes.
+ */
+export function exportFilename(state: AppState, kind: ExportKind): string {
+  const title = safeSlug(state.revision.documentTitle, "agreement");
+  const revision = safeSlug(state.revision.revisionId, "r1");
+  const suffix = kind === "brief" ? "negotiation-brief" : "redlined";
+  return `${title}-${revision}-${suffix}.md`;
+}
+
+/** Renders whichever export `kind` names. */
+export function renderExport(state: AppState, kind: ExportKind): string {
+  return kind === "brief" ? renderNegotiationBrief(state) : renderRedlinedMarkdown(state);
 }

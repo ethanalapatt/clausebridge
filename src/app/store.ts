@@ -1,3 +1,5 @@
+import { downloadTextFile } from "@/app/download";
+import { exportFilename, renderExport } from "@/core/exports";
 import { getNegotiationContext, stageRedlinePackage } from "@/core/handlers";
 import type {
   NegotiationContextInput,
@@ -9,11 +11,12 @@ import {
   applyAction,
   commit,
   createSession,
+  resetSession,
   undo,
   withActivity,
 } from "@/core/state";
 import type { Action, Session } from "@/core/state";
-import type { HandlerResult, InvocationSource, WebMcpStatus } from "@/core/types";
+import type { ExportKind, HandlerResult, InvocationSource, WebMcpStatus } from "@/core/types";
 
 /**
  * A tiny external store.
@@ -28,12 +31,17 @@ function nowIso(): string {
   return new Date().toISOString();
 }
 
+/** How a rendered export reaches the disk. Injectable so it is testable in Node. */
+export type SaveFile = (filename: string, contents: string) => void;
+
 export class ClauseBridgeStore {
   private session: Session;
   private readonly listeners = new Set<() => void>();
+  private readonly save: SaveFile;
 
-  constructor(session: Session = createSession()) {
+  constructor(session: Session = createSession(), save: SaveFile = downloadTextFile) {
     this.session = session;
+    this.save = save;
   }
 
   readonly subscribe = (listener: () => void): (() => void) => {
@@ -61,6 +69,23 @@ export class ClauseBridgeStore {
 
   readonly setWebMcpStatus = (status: WebMcpStatus): void => {
     this.dispatch({ type: "set-webmcp-status", status });
+  };
+
+  /** Restores the exact seeded starting state and clears the undo history. */
+  readonly resetDemo = (): void => {
+    this.set(resetSession(this.session));
+  };
+
+  /**
+   * Renders an export from the *current* observed state and saves it locally.
+   * The download is recorded in the log so the timeline shows what left the tab.
+   */
+  readonly downloadExport = (kind: ExportKind): string => {
+    const state = this.session.present;
+    const filename = exportFilename(state, kind);
+    this.save(filename, renderExport(state, kind));
+    this.dispatch({ type: "record-export", kind, filename });
+    return filename;
   };
 
   /** Records the inbound call before running it, so the timeline shows intent. */

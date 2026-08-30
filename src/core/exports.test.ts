@@ -1,6 +1,12 @@
 import { beforeEach, describe, expect, it } from "vitest";
 
-import { renderNegotiationBrief, renderRedlinedMarkdown } from "@/core/exports";
+import {
+  exportFilename,
+  renderExport,
+  renderNegotiationBrief,
+  renderRedlinedMarkdown,
+  safeSlug,
+} from "@/core/exports";
 import { stageRedlinePackage } from "@/core/handlers";
 import type { HandlerContext } from "@/core/handlers";
 import { toDraft } from "@/core/segmentation";
@@ -216,5 +222,72 @@ describe("renderRedlinedMarkdown", () => {
 
   it("contains no wall-clock timestamp", () => {
     expect(renderRedlinedMarkdown(decided.state)).not.toMatch(/\d{4}-\d{2}-\d{2}T/);
+  });
+});
+
+describe("safeSlug", () => {
+  it("reduces a title to lowercase ASCII words joined by single hyphens", () => {
+    expect(safeSlug("Northstar SaaS Services Agreement — Fictional Demo")).toBe(
+      "northstar-saas-services-agreement-fictional-demo",
+    );
+  });
+
+  it("strips characters that would escape the filename or the directory", () => {
+    expect(safeSlug("../../etc/passwd")).toBe("etc-passwd");
+    expect(safeSlug("a/b\\c:d*e?f\"g<h>i|j")).toBe("a-b-c-d-e-f-g-h-i-j");
+    expect(safeSlug(".hidden.")).toBe("hidden");
+    expect(safeSlug("CON")).toBe("con");
+  });
+
+  it("folds accents instead of deleting the letters underneath", () => {
+    expect(safeSlug("Résumé Clause")).toBe("resume-clause");
+  });
+
+  it("falls back rather than returning an empty name", () => {
+    expect(safeSlug("!!!", "agreement")).toBe("agreement");
+    expect(safeSlug("   ")).toBe("document");
+  });
+
+  it("caps the length and never leaves a trailing hyphen", () => {
+    const slug = safeSlug("word ".repeat(50));
+    expect(slug.length).toBeLessThanOrEqual(60);
+    expect(slug.endsWith("-")).toBe(false);
+  });
+});
+
+describe("exportFilename", () => {
+  it("names both exports from the document title and revision", () => {
+    const { state } = decidedState();
+    expect(exportFilename(state, "brief")).toBe(
+      "northstar-saas-services-agreement-fictional-demo-nsa-r1-negotiation-brief.md",
+    );
+    expect(exportFilename(state, "redline")).toBe(
+      "northstar-saas-services-agreement-fictional-demo-nsa-r1-redlined.md",
+    );
+  });
+
+  it("is deterministic — no clock, no counter", () => {
+    const { state } = decidedState();
+    expect(exportFilename(state, "brief")).toBe(exportFilename(state, "brief"));
+  });
+
+  it("stays safe for a hostile pasted title", () => {
+    const base = createInitialState();
+    const hostile: AppState = {
+      ...base,
+      revision: { ...base.revision, documentTitle: "../../../etc/passwd" },
+    };
+    const name = exportFilename(hostile, "brief");
+    expect(name).toBe("etc-passwd-nsa-r1-negotiation-brief.md");
+    expect(name).not.toContain("/");
+    expect(name).not.toContain("..");
+  });
+});
+
+describe("renderExport", () => {
+  it("dispatches to the matching renderer", () => {
+    const { state } = decidedState();
+    expect(renderExport(state, "brief")).toBe(renderNegotiationBrief(state));
+    expect(renderExport(state, "redline")).toBe(renderRedlinedMarkdown(state));
   });
 });

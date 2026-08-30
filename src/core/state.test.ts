@@ -15,6 +15,7 @@ import {
   governingEdit,
   isEditStale,
   reduce,
+  resetSession,
   undo,
   undoLabel,
 } from "@/core/state";
@@ -346,5 +347,163 @@ describe("undo", () => {
     }
     expect(s.past.length).toBe(50);
     expect(s.past[0]?.label).toBe("change 10");
+  });
+});
+
+describe("apply-demo-setup", () => {
+  it("applies role, selection, non-negotiables and priorities in one step", () => {
+    const base = createInitialState();
+    const liability = base.revision.clauses.find((c) => c.clauseType === "liability")!.id;
+    const termination = base.revision.clauses.find((c) => c.clauseType === "termination")!.id;
+
+    const next = reduce(
+      base,
+      {
+        type: "apply-demo-setup",
+        label: "Applied the demo setup",
+        setup: {
+          partyRole: "customer",
+          selectedClauseIds: [liability, termination],
+          nonNegotiableClauseIds: [liability],
+          priorityAreas: ["termination", "  data retention  ", "   "],
+        },
+      },
+      AT,
+    );
+
+    expect(next.partyRole).toBe("customer");
+    expect(next.selectedClauseIds).toEqual([liability, termination]);
+    expect(next.nonNegotiableClauseIds).toEqual([liability]);
+    // Blank areas are dropped and the rest are trimmed.
+    expect(next.priorityAreas).toEqual(["termination", "data retention"]);
+    expect(next.activity.at(-1)?.summary).toBe("Applied the demo setup");
+  });
+
+  it("drops clause IDs that do not exist in the active revision", () => {
+    const base = createInitialState();
+    const real = base.revision.clauses[0]!.id;
+
+    const next = reduce(
+      base,
+      {
+        type: "apply-demo-setup",
+        label: "setup",
+        setup: {
+          partyRole: "vendor",
+          selectedClauseIds: [real, "NSA-r1-999", "not-a-clause"],
+          nonNegotiableClauseIds: ["NSA-r1-999"],
+          priorityAreas: [],
+        },
+      },
+      AT,
+    );
+
+    expect(next.selectedClauseIds).toEqual([real]);
+    expect(next.nonNegotiableClauseIds).toEqual([]);
+  });
+
+  it("is undoable", () => {
+    const session = createSession();
+    const s = applyAction(
+      session,
+      {
+        type: "apply-demo-setup",
+        label: "Applied the demo setup",
+        setup: {
+          partyRole: "customer",
+          selectedClauseIds: [],
+          nonNegotiableClauseIds: [],
+          priorityAreas: ["termination"],
+        },
+      },
+      AT,
+    );
+
+    expect(canUndo(s)).toBe(true);
+    expect(undo(s, AT).present.priorityAreas).toEqual([]);
+  });
+});
+
+describe("record-export", () => {
+  it("appends a truthful export entry without changing any document state", () => {
+    const base = createInitialState();
+    const next = reduce(
+      base,
+      { type: "record-export", kind: "brief", filename: "northstar-r1-negotiation-brief.md" },
+      AT,
+    );
+
+    const entry = next.activity.at(-1)!;
+    expect(entry.kind).toBe("export");
+    expect(entry.summary).toBe("Downloaded the negotiation brief");
+    expect(entry.detail).toBe("northstar-r1-negotiation-brief.md");
+    expect(next.revision).toBe(base.revision);
+    expect(next.edits).toBe(base.edits);
+  });
+
+  it("is not undoable — there is nothing to step back to", () => {
+    const s = applyAction(
+      createSession(),
+      { type: "record-export", kind: "redline", filename: "x.md" },
+      AT,
+    );
+    expect(canUndo(s)).toBe(false);
+    expect(s.present.activity.length).toBe(1);
+  });
+});
+
+describe("resetSession", () => {
+  it("restores the exact initial state after a full golden path", () => {
+    const initial = createInitialState();
+    let session = createSession();
+    const liability = initial.revision.clauses.find((c) => c.clauseType === "liability")!.id;
+
+    session = applyAction(session, { type: "set-role", role: "vendor" }, AT);
+    session = applyAction(session, { type: "toggle-selected", clauseId: liability }, AT);
+    session = applyAction(session, { type: "toggle-non-negotiable", clauseId: liability }, AT);
+    session = applyAction(session, { type: "set-priority-areas", areas: ["liability"] }, AT);
+    session = applyAction(session, { type: "focus-clause", clauseId: liability }, AT);
+
+    const staged = stageRedlinePackage(
+      session.present,
+      {
+        packageLabel: "Baseline",
+        edits: [
+          {
+            clauseId: liability,
+            replacementText: "A different fictional liability allocation.",
+            rationale: "demo",
+            priorityTag: "required",
+          },
+        ],
+      },
+      { source: "local-handler-test", at: AT },
+    );
+    session = commit(session, staged.state, "stage");
+
+    const reset = resetSession(session);
+
+    expect(reset.past).toEqual([]);
+    expect(reset.present).toEqual(initial);
+  });
+
+  it("keeps the WebMCP status, which describes the browser rather than the demo", () => {
+    let session = createSession();
+    session = applyAction(
+      session,
+      {
+        type: "set-webmcp-status",
+        status: { kind: "registered", toolNames: ["get_negotiation_context"] },
+      },
+      AT,
+    );
+
+    const reset = resetSession(session);
+    expect(reset.present.webmcpStatus).toEqual({
+      kind: "registered",
+      toolNames: ["get_negotiation_context"],
+    });
+    expect(reset.present.activity).toEqual([]);
+    expect(reset.present.seq).toBe(0);
   });
 });

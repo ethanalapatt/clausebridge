@@ -2,7 +2,8 @@ import { describe, expect, it, vi } from "vitest";
 
 import { ClauseBridgeStore } from "@/app/store";
 import { buildBaselinePackage, buildContextInput } from "@/core/demo";
-import { canUndo } from "@/core/state";
+import { exportFilename, renderNegotiationBrief } from "@/core/exports";
+import { canUndo, createInitialState } from "@/core/state";
 
 /**
  * The store is what a native WebMCP agent actually touches, so these cover the
@@ -111,5 +112,85 @@ describe("ClauseBridgeStore", () => {
       store.stageRedlinePackage(circular as never, "local-handler-test"),
     ).not.toThrow();
     expect(store.getSnapshot().present.activity[0]?.detail).toBe("(unserializable input)");
+  });
+});
+
+describe("ClauseBridgeStore exports and reset", () => {
+  it("saves the brief under a safe filename and records the download", () => {
+    const saved: { filename: string; contents: string }[] = [];
+    const store = new ClauseBridgeStore(undefined, (filename, contents) =>
+      saved.push({ filename, contents }),
+    );
+
+    const filename = store.downloadExport("brief");
+    const state = store.getSnapshot().present;
+
+    expect(filename).toBe(exportFilename(state, "brief"));
+    expect(saved).toHaveLength(1);
+    expect(saved[0]!.filename).toBe(filename);
+    expect(saved[0]!.contents.startsWith("# Negotiation Brief —")).toBe(true);
+
+    const entry = state.activity.at(-1)!;
+    expect(entry.kind).toBe("export");
+    expect(entry.detail).toBe(filename);
+  });
+
+  it("exports only what the current state actually holds", () => {
+    const saved: string[] = [];
+    const store = new ClauseBridgeStore(undefined, (_, contents) => saved.push(contents));
+
+    store.stageRedlinePackage(
+      buildBaselinePackage(store.getSnapshot().present)!,
+      "local-handler-test",
+    );
+    const pending = store.getSnapshot().present.edits[0]!;
+    store.dispatch({ type: "reject-edit", editId: pending.editId });
+    store.downloadExport("brief");
+
+    // A rejected proposal is still reported, and still marked as not applied.
+    expect(saved[0]).toContain("Proposed replacement (rejected — not applied)");
+  });
+
+  it("renders exactly what the pure renderer produces for the state at save time", () => {
+    const saved: string[] = [];
+    const store = new ClauseBridgeStore(undefined, (_, contents) => saved.push(contents));
+    store.getNegotiationContext(
+      buildContextInput(store.getSnapshot().present),
+      "local-handler-test",
+    );
+
+    // Captured before the save: the download is itself logged afterwards, so a
+    // brief can never contain the log line for its own download.
+    const atSaveTime = store.getSnapshot().present;
+    store.downloadExport("brief");
+
+    expect(saved[0]).toBe(renderNegotiationBrief(atSaveTime));
+    expect(store.getSnapshot().present.activity.length).toBe(atSaveTime.activity.length + 1);
+  });
+
+  it("resets to the exact initial state and clears the undo stack", () => {
+    const store = new ClauseBridgeStore();
+    store.stageRedlinePackage(
+      buildBaselinePackage(store.getSnapshot().present)!,
+      "local-handler-test",
+    );
+    store.dispatch({ type: "set-role", role: "vendor" });
+    expect(canUndo(store.getSnapshot())).toBe(true);
+
+    store.resetDemo();
+    const session = store.getSnapshot();
+
+    expect(session.past).toEqual([]);
+    expect(session.present).toEqual(createInitialState());
+  });
+
+  it("notifies subscribers when the demo is reset", () => {
+    const store = new ClauseBridgeStore();
+    const listener = vi.fn();
+    store.dispatch({ type: "set-role", role: "vendor" });
+    store.subscribe(listener);
+
+    store.resetDemo();
+    expect(listener).toHaveBeenCalled();
   });
 });

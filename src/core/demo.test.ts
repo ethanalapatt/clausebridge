@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vitest";
 
-import { buildBaselinePackage, buildContextInput, clauseIdsOfTypes } from "@/core/demo";
+import {
+  buildBaselinePackage,
+  buildContextInput,
+  clauseIdsOfTypes,
+  goldenPathSetup,
+  goldenPathSteps,
+} from "@/core/demo";
 import { getNegotiationContext, stageRedlinePackage } from "@/core/handlers";
 import { FALLBACK_LIBRARY } from "@/core/seed/fallbackLibrary";
 import { segmentPastedText } from "@/core/segmentation";
@@ -107,5 +113,85 @@ describe("buildBaselinePackage", () => {
   it("is deterministic", () => {
     const state = createInitialState();
     expect(buildBaselinePackage(state)).toEqual(buildBaselinePackage(state));
+  });
+});
+
+describe("goldenPathSetup", () => {
+  it("describes the brief's starting posture against the seeded revision", () => {
+    const state = createInitialState();
+    const setup = goldenPathSetup(state);
+
+    expect(setup.partyRole).toBe("customer");
+    expect(setup.priorityAreas).toEqual(["termination", "data retention"]);
+    expect(setup.selectedClauseIds).toEqual(
+      clauseIdsOfTypes(state, ["liability", "termination", "data_retention"]),
+    );
+    expect(setup.nonNegotiableClauseIds).toEqual(clauseIdsOfTypes(state, ["liability"]));
+  });
+
+  it("yields only clauses the active document actually has", () => {
+    const state = createInitialState(
+      segmentPastedText("1. Notices\n\nFictional notices go to the addresses on the order form."),
+    );
+    const setup = goldenPathSetup(state);
+
+    expect(setup.selectedClauseIds).toEqual([]);
+    expect(setup.nonNegotiableClauseIds).toEqual([]);
+  });
+});
+
+describe("goldenPathSteps", () => {
+  it("starts with only the document step complete", () => {
+    const steps = goldenPathSteps(createInitialState());
+    expect(steps.map((step) => step.done)).toEqual([true, false, false, false, false, false]);
+  });
+
+  it("ticks each step only once the real operation has happened", () => {
+    let state = createInitialState();
+    const setup = goldenPathSetup(state);
+    const done = () => Object.fromEntries(goldenPathSteps(state).map((s) => [s.id, s.done]));
+
+    state = reduce(state, { type: "apply-demo-setup", setup, label: "setup" }, AT);
+    expect(done().setup).toBe(true);
+    expect(done().context).toBe(false);
+
+    state = getNegotiationContext(state, buildContextInput(state), CTX).state;
+    expect(done().context).toBe(true);
+    expect(done().stage).toBe(false);
+
+    const pkg = buildBaselinePackage(state)!;
+    state = stageRedlinePackage(state, pkg, CTX).state;
+    expect(done().stage).toBe(true);
+    // Three redlines are staged and none is decided yet.
+    expect(done().decide).toBe(false);
+
+    for (const edit of state.edits) {
+      state = reduce(state, { type: "approve-edit", editId: edit.editId }, AT);
+    }
+    expect(done().decide).toBe(true);
+    expect(done().export).toBe(false);
+
+    state = reduce(state, { type: "record-export", kind: "brief", filename: "b.md" }, AT);
+    expect(done().export).toBe(true);
+  });
+
+  it("does not tick the setup step from a partial configuration", () => {
+    let state = createInitialState();
+    state = reduce(state, { type: "set-role", role: "customer" }, AT);
+    state = reduce(state, { type: "set-priority-areas", areas: ["termination"] }, AT);
+
+    expect(goldenPathSteps(state).find((step) => step.id === "setup")?.done).toBe(false);
+  });
+
+  it("does not tick retrieval when the tool call was rejected", () => {
+    const state = createInitialState();
+    const outcome = getNegotiationContext(
+      state,
+      { clauseIds: ["NSA-r1-999"], partyRole: "customer", priorityAreas: [] },
+      CTX,
+    );
+
+    expect(outcome.result.ok).toBe(false);
+    expect(goldenPathSteps(outcome.state).find((step) => step.id === "context")?.done).toBe(false);
   });
 });
