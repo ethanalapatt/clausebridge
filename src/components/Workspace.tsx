@@ -8,6 +8,7 @@ import { StoreContext } from "@/app/useClauseBridge";
 import { AgreementPane } from "@/components/AgreementPane";
 import { DemoGuide } from "@/components/DemoGuide";
 import { Header } from "@/components/Header";
+import { KeyboardShortcuts } from "@/components/KeyboardShortcuts";
 import { LeftRail } from "@/components/LeftRail";
 import { PreviewDialog } from "@/components/PreviewDialog";
 import { RightRail } from "@/components/RightRail";
@@ -66,6 +67,7 @@ export function Workspace() {
   return (
     <StoreContext.Provider value={store}>
       <div className="flex h-dvh flex-col overflow-hidden">
+        <KeyboardShortcuts />
         <Header onOpenPreview={() => setPreviewOpen(true)} />
 
         {restored && (

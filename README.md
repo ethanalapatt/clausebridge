@@ -76,6 +76,9 @@ actually run — nothing there is scripted.
 `↶ Undo` in the header steps back one decision at a time. **Reset demo** restores the exact seeded
 starting state and clears the log and the undo stack.
 
+Keyboard: <kbd>A</kbd> approves and <kbd>R</kbd> rejects the first redline still awaiting a decision,
+and <kbd>U</kbd> undoes. All three are inert while you are typing in a field.
+
 On screens narrower than `lg`, the three panes become **Controls / Agreement / Agent** tabs, so every
 control stays reachable on a phone.
 

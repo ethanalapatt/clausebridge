@@ -1,6 +1,7 @@
 "use client";
 
 import { useSession, useStore } from "@/app/useClauseBridge";
+import { ShortcutHint } from "@/components/KeyboardShortcuts";
 import { Button, cx } from "@/components/ui";
 import {
   GOLDEN_PATH_SETUP_LABEL,
@@ -51,6 +52,8 @@ export function DemoGuide() {
             />
           ))}
         </ol>
+
+        <ShortcutHint />
 
         <Button
           size="sm"
