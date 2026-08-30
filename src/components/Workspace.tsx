@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 
+import { browserSessionStorage, loadPersistedSession } from "@/app/sessionStorage";
 import { ClauseBridgeStore } from "@/app/store";
 import { StoreContext } from "@/app/useClauseBridge";
 import { AgreementPane } from "@/components/AgreementPane";
@@ -10,7 +11,8 @@ import { Header } from "@/components/Header";
 import { LeftRail } from "@/components/LeftRail";
 import { PreviewDialog } from "@/components/PreviewDialog";
 import { RightRail } from "@/components/RightRail";
-import { cx } from "@/components/ui";
+import { Button, cx } from "@/components/ui";
+import { hasRestorableWork } from "@/core/persistence";
 import { registerClauseBridgeTools } from "@/webmcp/register";
 
 const PANES = [
@@ -23,11 +25,25 @@ type PaneId = (typeof PANES)[number]["id"];
 
 /** The three-part workspace, plus WebMCP registration on mount. */
 export function Workspace() {
-  const store = useMemo(() => new ClauseBridgeStore(), []);
+  // Seeded session on both server and client; anything saved is adopted after
+  // mount so the first paint matches the server markup.
+  const store = useMemo(
+    () => new ClauseBridgeStore(undefined, undefined, browserSessionStorage),
+    [],
+  );
   const [previewOpen, setPreviewOpen] = useState(false);
+  const [restored, setRestored] = useState(false);
   // Below `lg` the three panes do not fit side by side, so they become tabs
   // rather than disappearing. Every control stays reachable on a phone.
   const [pane, setPane] = useState<PaneId>("agreement");
+
+  useEffect(() => {
+    const saved = loadPersistedSession();
+    if (saved !== null && hasRestorableWork(saved)) {
+      store.hydrate(saved);
+      setRestored(true);
+    }
+  }, [store]);
 
   useEffect(() => {
     const outcome = registerClauseBridgeTools(store.asWebMcpBridge());
@@ -51,6 +67,34 @@ export function Workspace() {
     <StoreContext.Provider value={store}>
       <div className="flex h-dvh flex-col overflow-hidden">
         <Header onOpenPreview={() => setPreviewOpen(true)} />
+
+        {restored && (
+          <div
+            role="status"
+            className="flex flex-wrap items-center gap-x-3 gap-y-1 border-b border-edited-500 bg-edited-100 px-4 py-2 text-[11px] text-edited-700"
+          >
+            <span>
+              <strong className="font-semibold">Picked up where you left off.</strong> Your staged
+              redlines and decisions were restored from this browser.
+            </span>
+            <span className="ml-auto flex items-center gap-2">
+              <Button size="sm" onClick={() => setRestored(false)}>
+                Keep working
+              </Button>
+              <Button
+                size="sm"
+                variant="reject"
+                onClick={() => {
+                  store.resetDemo();
+                  setRestored(false);
+                }}
+              >
+                Start fresh
+              </Button>
+            </span>
+          </div>
+        )}
+
         <DemoGuide />
 
         <nav

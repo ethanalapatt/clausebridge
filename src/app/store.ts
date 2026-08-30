@@ -90,6 +90,17 @@ export class ClauseBridgeStore {
     }
   }
 
+  /**
+   * Adopts a session restored from storage.
+   *
+   * Called once after mount rather than in the constructor: the server renders
+   * the seeded demo, so reading storage during render would make the first
+   * client paint disagree with the markup and trip a hydration mismatch.
+   */
+  readonly hydrate = (session: Session): void => {
+    this.set(session);
+  };
+
   readonly dispatch = (action: Action): void => {
     this.set(applyAction(this.session, action, nowIso()));
   };

@@ -26,8 +26,9 @@ npm run dev
 ```
 
 Then open **http://localhost:3000**. No network access, credentials, API keys, or accounts are
-needed — the golden path works entirely offline. There is no backend, no database, and no telemetry;
-all state lives in the tab and is gone when you close it.
+needed — the golden path works entirely offline. There is no backend, no database, and no telemetry.
+Your session is saved to this browser's `localStorage` so a reload picks up where you left off;
+**Reset demo** clears it. Nothing leaves the tab.
 
 To bind the preview to loopback only, pass the host and port explicitly:
 
@@ -253,7 +254,7 @@ Not yet done, and not attempted in this local build:
 - Multiple bundled sample agreements and a broader fallback library.
 - Package-level bulk actions and redline comparison across revisions.
 - Migrating staged edits across a revision instead of marking them stale.
-- Persistence: state lives in memory only, so a page reload starts the demo over.
+- Cross-revision redline comparison.
 
 ## License
 
