@@ -51,11 +51,12 @@ was contacted in this run and none will be.**
 - Approved external actions: use the existing `gh` CLI authentication to create and push to the confirmed ClauseBridge repository. Nothing else external.
 - Still prohibited: unapproved APIs, cloud services, deployment, analytics, authentication, external legal sources, LLM backends, force-pushes, destructive Git, releases, pull requests, GitHub Pages/Actions, or changes outside this folder.
 
-## GitHub state — historical record only, NOT touched in this run
+## GitHub state
 
-> This section records what an earlier run did. `do this one.md` revokes external access, so this run
-> contacted no remote: no push, pull, fetch, `gh` call, or `git ls-remote`. The commits this run
-> created exist **only on this machine** and are ahead of whatever the remote holds.
+> **Authority note.** `do this one.md` prohibited all remote access, and the local MVP was built and
+> verified entirely under that restriction. The user then instructed "publish to github" directly in
+> chat, which supersedes the file for that action. Everything before the push in this run was done
+> with no network contact; the push and the checks immediately around it are the only remote calls.
 
 - Repository URL: https://github.com/ethanalapatt/clausebridge
 - Repository visibility: public (explicitly confirmed by the user)
@@ -169,6 +170,7 @@ Both were in `src/components/AgreementPane.tsx` and were only observable in a re
 1. **Stop and wait for the user's visual and product review** of http://127.0.0.1:3100.
 2. Decide with the user what to do about the stale LAN-facing `next-server` on PID 5419.
 3. If the user wants the interactive Chrome pass, reconnect the browser extension and re-run the golden path against the current UI.
+4. The local MVP is published to `origin/main`. Hosting, the demo video, and Devpost remain unstarted and unauthorized.
 
 ## Remaining local MVP requirements
 
@@ -189,12 +191,16 @@ Both were in `src/components/AgreementPane.tsx` and were only observable in a re
 - [ ] Interactive browser golden-path and narrow-screen visual confirmation — **blocked**, browser extension not connected.
 - [ ] User's visual/product review — awaiting the user.
 
-## Later external work — NOT AUTHORIZED IN THIS RUN
+## External work
 
-None of the following was performed, and none may be without new explicit user instruction. No remote
-was contacted at any point in this run.
+**Performed, on the user's explicit chat instruction ("publish to github"):**
 
-- GitHub: no push, pull, fetch, PR, issue, release, or repository-setting change. The local commits below exist only on this machine.
+- `git push origin main` — fast-forward of two commits onto the existing public repository. Verified beforehand: no divergence from `origin/main`, no secrets or credentials in tracked files, and no build output, dependency, cache, log, or `.env` file tracked.
+- Read-only `gh auth status` and `gh repo view` to confirm the account and that the repository is public.
+- No force push, no history rewriting, no PR, issue, release, or repository-setting change.
+
+**Still NOT performed, and not authorized without new explicit instruction:**
+
 - Vercel or any other hosting, tunnel, or public URL.
 - Demo video production and Devpost submission.
 - Any external API, LLM backend, package install, or web browsing.

@@ -244,7 +244,8 @@ and any LLM backend. ClauseBridge is a document-operations surface for an agent,
 
 Not yet done, and not attempted in this local build:
 
-- Hosting, an open-source license, and the Devpost submission materials.
+- Hosting, an open-source license, and the Devpost submission materials. (The source is published at
+  https://github.com/ethanalapatt/clausebridge; it is not deployed anywhere.)
 - A re-run of the interactive Chrome pass against the current UI, including a narrow-screen visual
   check. There is no DOM test environment installed, so component rendering is covered only through
   the production build and server-rendered output.
