@@ -8,8 +8,13 @@ import {
   isNonNegotiable,
   isSelected,
 } from "@/core/state";
+import { boardStatuses, packageViews } from "@/core/review";
 import type { AppState, ExportKind, StagedEdit } from "@/core/types";
-import { DECISION_STATUS_LABELS, INVOCATION_SOURCE_LABELS } from "@/core/types";
+import {
+  DECISION_STATUS_LABELS,
+  EXPORT_KIND_FORMATS,
+  INVOCATION_SOURCE_LABELS,
+} from "@/core/types";
 
 /**
  * Deterministic Markdown exports.
@@ -258,14 +263,189 @@ export function safeSlug(value: string, fallback = "document"): string {
  * timestamp, so re-exporting the same decisions overwrites rather than piling up
  * near-identical files, and the name still says which revision it describes.
  */
+const EXPORT_SUFFIXES: Readonly<Record<ExportKind, string>> = {
+  brief: "negotiation-brief",
+  redline: "redlined",
+  "decision-log": "decision-log",
+  "tool-activity": "tool-activity",
+};
+
 export function exportFilename(state: AppState, kind: ExportKind): string {
   const title = safeSlug(state.revision.documentTitle, "agreement");
   const revision = safeSlug(state.revision.revisionId, "r1");
-  const suffix = kind === "brief" ? "negotiation-brief" : "redlined";
-  return `${title}-${revision}-${suffix}.md`;
+  return `${title}-${revision}-${EXPORT_SUFFIXES[kind]}.${EXPORT_KIND_FORMATS[kind]}`;
 }
 
 /** Renders whichever export `kind` names. */
 export function renderExport(state: AppState, kind: ExportKind): string {
-  return kind === "brief" ? renderNegotiationBrief(state) : renderRedlinedMarkdown(state);
+  switch (kind) {
+    case "brief":
+      return renderNegotiationBrief(state);
+    case "redline":
+      return renderRedlinedMarkdown(state);
+    case "decision-log":
+      return renderDecisionLog(state);
+    case "tool-activity":
+      return renderToolActivity(state);
+  }
+}
+
+// --------------------------------------------------------------- JSON bundle
+
+/** Header every export carries: what this is, and which revision it describes. */
+function exportHeader(state: AppState) {
+  return {
+    product: "ClauseBridge",
+    disclaimer:
+      "Fictional demonstration data. ClauseBridge is a document-operations prototype; this is " +
+      "not legal advice, and no wording here is asserted to be legally correct, safer, or " +
+      "preferable.",
+    document: {
+      documentId: state.revision.documentId,
+      documentTitle: state.revision.documentTitle,
+      revisionId: state.revision.revisionId,
+      revisionNumber: state.revision.revisionNumber,
+      source: state.revision.source,
+      clauseCount: state.revision.clauses.length,
+      fictional: true as const,
+    },
+    reviewingAs: state.partyRole,
+  };
+}
+
+/**
+ * The decision record: the objective board, every proposal and where it landed,
+ * the preview revisions, and the ordered event log.
+ *
+ * Pure and ordered by the recorded sequence counters, so the same decisions
+ * always produce byte-identical JSON.
+ */
+export function renderDecisionLog(state: AppState): string {
+  const payload = {
+    ...exportHeader(state),
+    objectives: {
+      note: state.objectiveNote,
+      priorityAreas: state.priorityAreas,
+      selectedClauseIds: state.selectedClauseIds,
+      nonNegotiableClauseIds: state.nonNegotiableClauseIds,
+      constraints: boardStatuses(state).map((status) => ({
+        constraintId: status.constraint.id,
+        ruleId: status.constraint.ruleId,
+        severity: status.constraint.severity,
+        value: status.constraint.value,
+        note: status.constraint.note,
+        evaluatedAgainstClauseId: status.clauseId,
+        status: status.result?.status ?? "not_evaluated",
+        evidence: status.result?.evidence ?? null,
+        explanation: status.result?.explanation ?? null,
+        requiresManualReview: status.result?.requiresManualReview ?? true,
+      })),
+    },
+    packages: packageViews(state).map((view) => ({
+      packageId: view.packageId,
+      packageLabel: view.packageLabel,
+      stagedBy: INVOCATION_SOURCE_LABELS[view.package.source],
+      revisionId: view.package.revisionId,
+      counts: view.counts,
+      constraintTally: view.tally,
+      proposals: view.proposals.map((proposal) => ({
+        editId: proposal.editId,
+        clauseId: proposal.clauseId,
+        clauseTitle: proposal.clauseTitle,
+        priorityTag: proposal.priorityTag,
+        decision: proposal.status,
+        humanEdited: proposal.humanEdited,
+        governing: proposal.governing,
+        note: proposal.note,
+        rationale: proposal.rationale,
+        conflictsWithNonNegotiable: proposal.conflictsWithNonNegotiable,
+        fallback: proposal.fallback,
+        originalText: proposal.originalText,
+        proposedText: proposal.proposedText,
+        acceptedText: proposal.acceptedText,
+        wordsAdded: proposal.diff.wordsAdded,
+        wordsRemoved: proposal.diff.wordsRemoved,
+        constraints: proposal.constraints,
+      })),
+    })),
+    previewRevisions: state.checkpoints.map((checkpoint) => ({
+      id: checkpoint.id,
+      seq: checkpoint.seq,
+      label: checkpoint.label,
+      revisionId: checkpoint.revisionId,
+      decisions: checkpoint.decisions,
+    })),
+    events: state.activity.map((entry) => ({
+      id: entry.id,
+      seq: entry.seq,
+      at: entry.at,
+      source: entry.source,
+      kind: entry.kind,
+      tool: entry.tool,
+      summary: entry.summary,
+      detail: entry.detail,
+      clauseIds: entry.clauseIds,
+      packageIds: entry.packageIds,
+      before: entry.before,
+      after: entry.after,
+      revisionId: entry.revisionId,
+    })),
+  };
+
+  return `${JSON.stringify(payload, null, 2)}\n`;
+}
+
+/**
+ * The tool record: every handler invocation with its exact input, validation
+ * outcome, result summary and effect on the workspace.
+ *
+ * `input` and `output` are stored pre-serialized, so they are re-attached as
+ * parsed JSON where that is possible and left as the exact captured string
+ * where it is not.
+ */
+export function renderToolActivity(state: AppState): string {
+  const payload = {
+    ...exportHeader(state),
+    webmcp: {
+      status: state.webmcpStatus.kind,
+      detail:
+        state.webmcpStatus.kind === "registered"
+          ? state.webmcpStatus.toolNames.join(", ")
+          : state.webmcpStatus.kind === "checking"
+            ? null
+            : state.webmcpStatus.reason,
+      note:
+        "A call recorded as `local-handler-test` ran the same deterministic handler through the " +
+        "labeled local control, not through a native WebMCP agent.",
+    },
+    calls: state.toolCalls.map((call) => ({
+      id: call.id,
+      seq: call.seq,
+      at: call.at,
+      tool: call.tool,
+      source: call.source,
+      revisionId: call.revisionId,
+      inputSummary: call.inputSummary,
+      clauseIds: call.clauseIds,
+      outcome: call.outcome,
+      validation: call.validation,
+      resultSummary: call.resultSummary,
+      stateEffect: call.stateEffect,
+      errorCode: call.errorCode,
+      errorDetail: call.errorDetail,
+      input: reparse(call.input),
+      output: reparse(call.output),
+    })),
+  };
+
+  return `${JSON.stringify(payload, null, 2)}\n`;
+}
+
+/** Re-attaches serialized JSON, falling back to the exact captured string. */
+function reparse(value: string): unknown {
+  try {
+    return JSON.parse(value);
+  } catch {
+    return value;
+  }
 }

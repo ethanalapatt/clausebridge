@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   buildBaselinePackage,
+  buildPackage,
   buildContextInput,
   clauseIdsOfTypes,
   goldenPathSetup,
@@ -141,9 +142,24 @@ describe("goldenPathSetup", () => {
 });
 
 describe("goldenPathSteps", () => {
-  it("starts with only the document step complete", () => {
+  it("starts with only the steps that are genuinely already true", () => {
     const steps = goldenPathSteps(createInitialState());
-    expect(steps.map((step) => step.done)).toEqual([true, false, false, false, false, false]);
+    const done = Object.fromEntries(steps.map((step) => [step.id, step.done]));
+
+    expect(steps).toHaveLength(13);
+    // The seeded agreement is loaded and the default role is already Customer.
+    expect(done.load).toBe(true);
+    expect(done.role).toBe(true);
+    expect(steps.filter((step) => step.done)).toHaveLength(2);
+  });
+
+  it("gives every step a distinct id, label and one-sentence hint", () => {
+    const steps = goldenPathSteps(createInitialState());
+    expect(new Set(steps.map((step) => step.id)).size).toBe(steps.length);
+    for (const step of steps) {
+      expect(step.label.length).toBeGreaterThan(0);
+      expect(step.hint.length).toBeGreaterThan(0);
+    }
   });
 
   it("ticks each step only once the real operation has happened", () => {
@@ -151,36 +167,95 @@ describe("goldenPathSteps", () => {
     const setup = goldenPathSetup(state);
     const done = () => Object.fromEntries(goldenPathSteps(state).map((s) => [s.id, s.done]));
 
+    expect(done().load).toBe(true);
+    expect(done().role).toBe(true);
+    expect(done().lock).toBe(false);
+
     state = reduce(state, { type: "apply-demo-setup", setup, label: "setup" }, AT);
-    expect(done().setup).toBe(true);
+    expect(done().lock).toBe(true);
+    expect(done().constraints).toBe(true);
     expect(done().context).toBe(false);
 
     state = getNegotiationContext(state, buildContextInput(state), CTX).state;
     expect(done().context).toBe(true);
     expect(done().stage).toBe(false);
 
-    const pkg = buildBaselinePackage(state)!;
-    state = stageRedlinePackage(state, pkg, CTX).state;
+    // One package is not two contrasting alternatives.
+    state = stageRedlinePackage(state, buildPackage(state, "protective")!, CTX).state;
+    expect(done().stage).toBe(false);
+    state = stageRedlinePackage(state, buildPackage(state, "fast-close")!, CTX).state;
     expect(done().stage).toBe(true);
-    // Three redlines are staged and none is decided yet.
-    expect(done().decide).toBe(false);
 
-    for (const edit of state.edits) {
-      state = reduce(state, { type: "approve-edit", editId: edit.editId }, AT);
-    }
-    expect(done().decide).toBe(true);
-    expect(done().export).toBe(false);
+    expect(done().compare).toBe(false);
+    state = reduce(state, { type: "record-view", surface: "compare" }, AT);
+    expect(done().compare).toBe(true);
 
+    const on = (clauseType: string) => {
+      const clauseId = state.revision.clauses.find((c) => c.clauseType === clauseType)!.id;
+      return state.edits.filter((edit) => edit.clauseId === clauseId);
+    };
+
+    expect(done()["accept-termination"]).toBe(false);
+    state = reduce(state, { type: "approve-edit", editId: on("termination")[0]!.editId }, AT);
+    expect(done()["accept-termination"]).toBe(true);
+
+    expect(done()["edit-retention"]).toBe(false);
+    state = reduce(
+      state,
+      {
+        type: "edit-replacement",
+        editId: on("data_retention")[0]!.editId,
+        text: "Northstar shall delete Customer Data within fifteen (15) days after termination.",
+      },
+      AT,
+    );
+    expect(done()["edit-retention"]).toBe(true);
+
+    expect(done()["reject-liability"]).toBe(false);
+    state = reduce(state, { type: "reject-edit", editId: on("liability")[0]!.editId }, AT);
+    expect(done()["reject-liability"]).toBe(true);
+
+    // A preview revision exists, but the step waits until the human opens it.
+    expect(state.checkpoints.length).toBeGreaterThan(0);
+    expect(done().preview).toBe(false);
+    state = reduce(state, { type: "record-view", surface: "preview" }, AT);
+    expect(done().preview).toBe(true);
+
+    expect(done().timeline).toBe(false);
+    state = reduce(state, { type: "record-view", surface: "replay" }, AT);
+    expect(done().timeline).toBe(true);
+
+    // Both Markdown exports are required, not just one.
     state = reduce(state, { type: "record-export", kind: "brief", filename: "b.md" }, AT);
+    expect(done().export).toBe(false);
+    state = reduce(state, { type: "record-export", kind: "redline", filename: "r.md" }, AT);
     expect(done().export).toBe(true);
   });
 
-  it("does not tick the setup step from a partial configuration", () => {
+  it("does not tick the lock or constraint steps from a partial configuration", () => {
     let state = createInitialState();
     state = reduce(state, { type: "set-role", role: "customer" }, AT);
     state = reduce(state, { type: "set-priority-areas", areas: ["termination"] }, AT);
 
-    expect(goldenPathSteps(state).find((step) => step.id === "setup")?.done).toBe(false);
+    const done = Object.fromEntries(goldenPathSteps(state).map((s) => [s.id, s.done]));
+    expect(done.role).toBe(true);
+    expect(done.lock).toBe(false);
+    expect(done.constraints).toBe(false);
+  });
+
+  it("does not tick the constraint step for a Prefer of the same rule", () => {
+    let state = createInitialState();
+    state = reduce(
+      state,
+      { type: "add-constraint", ruleId: "termination_notice_min_days", severity: "prefer", value: 30 },
+      AT,
+    );
+    state = reduce(
+      state,
+      { type: "add-constraint", ruleId: "data_deletion_within_days", severity: "must", value: 30 },
+      AT,
+    );
+    expect(goldenPathSteps(state).find((step) => step.id === "constraints")?.done).toBe(false);
   });
 
   it("does not tick retrieval when the tool call was rejected", () => {

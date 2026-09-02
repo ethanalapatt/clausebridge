@@ -2,14 +2,16 @@ import { describe, expect, it } from "vitest";
 
 import { ClauseBridgeStore } from "@/app/store";
 import {
-  CUSTOMER_BASELINE_LABEL,
   GOLDEN_PATH_SETUP_LABEL,
   buildBaselinePackage,
   buildContextInput,
+  buildPackage,
   goldenPathSetup,
   goldenPathSteps,
 } from "@/core/demo";
 import { renderNegotiationBrief, renderRedlinedMarkdown } from "@/core/exports";
+import { compareCheckpoints, replaySteps } from "@/core/replay";
+import { boardStatuses, clauseComparisons, packageViews } from "@/core/review";
 import {
   clauseDecisionStatus,
   createInitialState,
@@ -21,8 +23,8 @@ import type { AppState } from "@/core/types";
 /**
  * The full golden path from the brief, driven through the store — the same
  * object the UI dispatches into and the same one a native WebMCP agent calls.
- * This covers the ten-step walkthrough as one continuous flow rather than as
- * isolated unit assertions.
+ * This covers the thirteen-step walkthrough as one continuous flow rather than
+ * as isolated unit assertions.
  */
 
 function typeId(state: AppState, clauseType: string): string {
@@ -32,7 +34,7 @@ function typeId(state: AppState, clauseType: string): string {
 }
 
 describe("golden path", () => {
-  it("runs the brief's ten steps end to end", () => {
+  it("runs the brief's thirteen-step walkthrough end to end", () => {
     const saved: { filename: string; contents: string }[] = [];
     const store = new ClauseBridgeStore(undefined, (filename, contents) =>
       saved.push({ filename, contents }),
@@ -53,9 +55,10 @@ describe("golden path", () => {
     const termination = typeId(now(), "termination");
     const retention = typeId(now(), "data_retention");
     const originalLiability = findClause(now(), liability)!.text;
+    const originalTermination = findClause(now(), termination)!.text;
 
-    // 2 + 3. Customer role, Liability non-negotiable, Termination and Data
-    // retention prioritised.
+    // 2, 3 + 4. Customer role, Liability locked, Must constraints for
+    // termination notice and data deletion.
     store.dispatch({
       type: "apply-demo-setup",
       setup: goldenPathSetup(now()),
@@ -64,9 +67,20 @@ describe("golden path", () => {
     expect(now().partyRole).toBe("customer");
     expect(now().nonNegotiableClauseIds).toEqual([liability]);
     expect(now().priorityAreas).toEqual(["termination", "data retention"]);
-    expect(stepDone("setup")).toBe(true);
+    expect(stepDone("role")).toBe(true);
+    expect(stepDone("lock")).toBe(true);
+    expect(stepDone("constraints")).toBe(true);
 
-    // 4. get_negotiation_context returns exact text, priorities, decision state
+    // The board reports honestly on the agreement as it stands: the seeded
+    // retention clause names no deletion deadline any rule can read.
+    const opening = new Map(
+      boardStatuses(now()).map((status) => [status.constraint.ruleId, status.result?.status]),
+    );
+    expect(opening.get("data_deletion_within_days")).toBe("unresolved");
+    expect(opening.get("termination_notice_min_days")).toBe("satisfied");
+    expect(opening.get("non_renewal_notice_max_days")).toBe("violated");
+
+    // 5. get_negotiation_context returns exact text, priorities, decision state
     // and matching fictional fallbacks.
     const context = store.getNegotiationContext(
       buildContextInput(now()),
@@ -101,25 +115,37 @@ describe("golden path", () => {
     ).toBe(true);
     expect(stepDone("context")).toBe(true);
 
-    // 5. The requested clauses are focused in the document.
+    // The requested clauses are focused in the document, and the call is
+    // recorded with its full provenance.
     expect(now().focusedClauseId).not.toBeNull();
     expect(now().focusPulse).toBeGreaterThan(0);
+    const contextCall = now().toolCalls.at(-1)!;
+    expect(contextCall.tool).toBe("get_negotiation_context");
+    expect(contextCall.source).toBe("local-handler-test");
+    expect(contextCall.outcome).toBe("ok");
+    expect(contextCall.stateEffect).toContain("Read-only");
 
-    // 6. A three-clause Customer Baseline is staged, and the approved document
-    // is untouched by staging.
-    const pkg = buildBaselinePackage(now())!;
-    expect(pkg.packageLabel).toBe(CUSTOMER_BASELINE_LABEL);
-    expect(pkg.edits).toHaveLength(3);
+    // 6. Two contrasting packages are staged through the same handler, and the
+    // approved document is untouched by staging.
+    const protective = buildPackage(now(), "protective")!;
+    const fastClose = buildPackage(now(), "fast-close")!;
+    expect(protective.packageLabel).toBe("Customer-Protective");
+    expect(fastClose.packageLabel).toBe("Fast Close");
+    expect(protective.edits).toHaveLength(3);
+    expect(fastClose.edits).toHaveLength(3);
 
-    const staged = store.stageRedlinePackage(pkg, "local-handler-test");
-    expect(staged.ok).toBe(true);
-    expect(now().edits).toHaveLength(3);
+    expect(store.stageRedlinePackage(protective, "local-handler-test").ok).toBe(true);
+    expect(stepDone("stage")).toBe(false);
+    expect(store.stageRedlinePackage(fastClose, "local-handler-test").ok).toBe(true);
+    expect(stepDone("stage")).toBe(true);
+
+    expect(now().packages).toHaveLength(2);
+    expect(now().edits).toHaveLength(6);
     expect(now().edits.every((edit) => edit.status === "pending")).toBe(true);
     expect(findClause(now(), liability)!.text).toBe(originalLiability);
     expect(effectiveClauseText(now(), liability)).toBe(originalLiability);
-    expect(stepDone("stage")).toBe(true);
 
-    // 7. Exact original-versus-proposed text is held per clause.
+    // Exact original-versus-proposed text is held per clause, per package.
     for (const edit of now().edits) {
       expect(edit.originalText).toBe(findClause(now(), edit.clauseId)!.text);
       expect(edit.proposedText.length).toBeGreaterThan(0);
@@ -127,53 +153,121 @@ describe("golden path", () => {
       expect(edit.rationale.length).toBeGreaterThan(0);
     }
 
-    const editFor = (clauseId: string) =>
-      now().edits.find((edit) => edit.clauseId === clauseId)!;
+    // 7. Comparing the alternatives: same clauses, different constraint
+    // outcomes, and every proposal traced to a bundled library entry.
+    const rows = clauseComparisons(now());
+    expect(rows).toHaveLength(3);
+    for (const row of rows) {
+      expect(row.proposals).toHaveLength(2);
+      for (const proposal of row.proposals) {
+        expect(proposal.fallback?.source).toBe("ClauseBridge fictional demo library");
+        expect(proposal.fallback?.verbatim).toBe(true);
+      }
+    }
 
-    // 8. Accept Termination, edit and accept Data retention, reject Liability,
-    // and add a note.
-    store.dispatch({ type: "approve-edit", editId: editFor(termination).editId });
+    const byLabel = new Map(packageViews(now()).map((view) => [view.packageLabel, view]));
+    expect(byLabel.get("Customer-Protective")!.tally.mustViolated).toBe(0);
+    expect(byLabel.get("Fast Close")!.tally.mustViolated).toBe(1);
+    // Both alternatives touch the clause the human locked, and say so.
+    expect(byLabel.get("Customer-Protective")!.counts.lockedClauses).toBe(1);
 
-    const humanWording = "Either party may terminate this fictional order form on 45 days notice.";
+    store.dispatch({ type: "record-view", surface: "compare" });
+    expect(stepDone("compare")).toBe(true);
+
+    const editIn = (packageId: string, clauseId: string) =>
+      now().edits.find((edit) => edit.packageId === packageId && edit.clauseId === clauseId)!;
+
+    // 8. Accept one Termination proposal — the protective one — and confirm the
+    // rival alternative stays staged rather than being decided for the human.
+    store.dispatch({ type: "approve-edit", editId: editIn("pkg-0001", termination).editId });
+    expect(stepDone("accept-termination")).toBe(true);
+    expect(editIn("pkg-0002", termination).status).toBe("pending");
+    expect(effectiveClauseText(now(), termination)).toBe(
+      editIn("pkg-0001", termination).proposedText,
+    );
+
+    // 9. Edit and accept a Data retention proposal.
+    const humanWording =
+      "Northstar shall delete Customer Data from all systems within fifteen (15) days after termination.";
     store.dispatch({
       type: "edit-replacement",
-      editId: editFor(retention).editId,
+      editId: editIn("pkg-0002", retention).editId,
       text: humanWording,
     });
+    expect(stepDone("edit-retention")).toBe(true);
 
-    store.dispatch({ type: "reject-edit", editId: editFor(liability).editId });
+    // 10. Reject the Liability proposals and leave the clause locked.
+    store.dispatch({ type: "reject-edit", editId: editIn("pkg-0001", liability).editId });
+    store.dispatch({ type: "reject-edit", editId: editIn("pkg-0002", liability).editId });
     store.dispatch({
       type: "set-note",
-      editId: editFor(liability).editId,
+      editId: editIn("pkg-0001", liability).editId,
       note: "Liability was marked non-negotiable before the agent ran.",
     });
+    expect(stepDone("reject-liability")).toBe(true);
 
-    // 9. Decision states and the approved document agree.
+    // Decision states and the approved document agree.
     expect(clauseDecisionStatus(now(), termination)).toBe("approved");
     expect(clauseDecisionStatus(now(), retention)).toBe("edited");
     expect(clauseDecisionStatus(now(), liability)).toBe("rejected");
-    expect(stepDone("decide")).toBe(true);
 
     // The rejected clause still reads as the untouched source text; the edited
     // one reads as the human's wording, not the agent's.
     expect(effectiveClauseText(now(), liability)).toBe(originalLiability);
     expect(effectiveClauseText(now(), retention)).toBe(humanWording);
-    expect(effectiveClauseText(now(), termination)).toBe(editFor(termination).proposedText);
+    expect(findClause(now(), termination)!.text).toBe(originalTermination);
 
     // The agent's superseded proposal is retained, not overwritten.
-    expect(editFor(retention).proposedText).not.toBe(humanWording);
-    expect(editFor(liability).note).toContain("non-negotiable");
+    expect(editIn("pkg-0002", retention).proposedText).not.toBe(humanWording);
+    expect(editIn("pkg-0001", liability).note).toContain("non-negotiable");
 
-    // 10. Both exports download and reflect only the observed state.
+    // The human's own wording satisfies the Must the fast-close proposal missed.
+    const finalBoard = new Map(
+      boardStatuses(now()).map((status) => [status.constraint.ruleId, status.result?.status]),
+    );
+    expect(finalBoard.get("data_deletion_within_days")).toBe("satisfied");
+    expect(finalBoard.get("manual_review_only")).toBe("unresolved");
+
+    // 11. The preview revision the decisions produced.
+    expect(now().checkpoints.length).toBeGreaterThan(0);
+    store.dispatch({ type: "record-view", surface: "preview" });
+    expect(stepDone("preview")).toBe(true);
+
+    const comparison = compareCheckpoints(now(), null, now().checkpoints.at(-1)!.id)!;
+    expect(comparison.changes.map((change) => change.clauseId).sort()).toEqual(
+      [termination, retention].sort(),
+    );
+
+    // 12. Replaying the timeline reads recorded events; it runs no tool.
+    const callsBeforeReplay = now().toolCalls.length;
+    const steps = replaySteps(now());
+    expect(steps.length).toBeGreaterThan(0);
+    expect(steps.some((step) => step.toolCall?.tool === "stage_redline_package")).toBe(true);
+    expect(now().toolCalls).toHaveLength(callsBeforeReplay);
+    store.dispatch({ type: "record-view", surface: "replay" });
+    expect(stepDone("timeline")).toBe(true);
+
+    // 13. The whole export bundle downloads and reflects only observed state.
     const briefName = store.downloadExport("brief");
     const redlineName = store.downloadExport("redline");
-    expect(saved.map((file) => file.filename)).toEqual([briefName, redlineName]);
+    const decisionName = store.downloadExport("decision-log");
+    const activityName = store.downloadExport("tool-activity");
+
+    expect(saved.map((file) => file.filename)).toEqual([
+      briefName,
+      redlineName,
+      decisionName,
+      activityName,
+    ]);
     expect(briefName.endsWith("-negotiation-brief.md")).toBe(true);
     expect(redlineName.endsWith("-redlined.md")).toBe(true);
+    expect(decisionName.endsWith("-decision-log.json")).toBe(true);
+    expect(activityName.endsWith("-tool-activity.json")).toBe(true);
     expect(stepDone("export")).toBe(true);
 
     const brief = saved[0]!.contents;
-    expect(brief).toContain(CUSTOMER_BASELINE_LABEL);
+    expect(brief).toContain("Customer-Protective");
+    expect(brief).toContain("Fast Close");
     expect(brief).toContain("Proposed replacement (rejected — not applied)");
     expect(brief).toContain("Human-edited replacement (applied)");
     expect(brief).toContain(humanWording);
@@ -183,6 +277,17 @@ describe("golden path", () => {
     // A rejected redline leaves no diff marks on its clause.
     const liabilitySection = redline.split("## ").find((s) => s.includes(originalLiability))!;
     expect(liabilitySection).not.toContain("~~");
+
+    const decisionLog = JSON.parse(saved[2]!.contents);
+    expect(decisionLog.document.revisionId).toBe("NSA-r1");
+    expect(decisionLog.packages).toHaveLength(2);
+    expect(decisionLog.disclaimer).toContain("not legal advice");
+
+    const toolLog = JSON.parse(saved[3]!.contents);
+    expect(toolLog.calls).toHaveLength(3);
+    expect(toolLog.calls.every((call: { source: string }) => call.source === "local-handler-test")).toBe(
+      true,
+    );
 
     // Every step of the checklist is now genuinely satisfied.
     expect(goldenPathSteps(now()).every((step) => step.done)).toBe(true);

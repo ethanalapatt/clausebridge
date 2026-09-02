@@ -18,12 +18,13 @@ import type {
   ExportKind,
   InvocationSource,
   PartyRole,
+  ReviewSurface,
   StagedEdit,
   ToolCallRecord,
   ToolName,
   WebMcpStatus,
 } from "@/core/types";
-import { EXPORT_KIND_LABELS } from "@/core/types";
+import { EXPORT_KIND_LABELS, REVIEW_SURFACE_LABELS } from "@/core/types";
 
 /**
  * Application state and its transitions.
@@ -329,6 +330,7 @@ export type Action =
       note?: string | null;
     }
   | { type: "set-objective-note"; note: string }
+  | { type: "record-view"; surface: ReviewSurface }
   | { type: "restore-checkpoint"; checkpointId: string }
   | { type: "set-webmcp-status"; status: WebMcpStatus };
 
@@ -353,6 +355,8 @@ const NON_UNDOABLE: ReadonlySet<Action["type"]> = new Set([
   // An export reads state and writes a file; it changes nothing to step back to.
   // It is still recorded, so the log shows what left the browser.
   "record-export",
+  // Opening a surface is recorded but is not a change to step back through.
+  "record-view",
 ]);
 
 export function isUndoable(action: Action): boolean {
@@ -751,7 +755,22 @@ function reduceInner(state: AppState, action: Action, at: string): AppState {
         kind: "export",
         summary: `Downloaded the ${EXPORT_KIND_LABELS[action.kind]}`,
         detail: action.filename,
+        after: action.kind,
       });
+
+    case "record-view": {
+      // Only a change of surface is recorded; re-rendering the same tab is not
+      // an event, and logging it would bury the real ones.
+      const last = [...state.activity].reverse().find((entry) => entry.kind === "view");
+      if (last?.after === action.surface) return state;
+
+      return withActivity(state, at, {
+        source: "ui",
+        kind: "view",
+        summary: `Opened the ${REVIEW_SURFACE_LABELS[action.surface]}`,
+        after: action.surface,
+      });
+    }
 
     case "add-constraint": {
       const rule = findRule(action.ruleId);
@@ -1063,6 +1082,8 @@ function describeAction(state: AppState, action: Action): string {
       return `update constraint ${action.constraintId}`;
     case "set-objective-note":
       return "change the objective note";
+    case "record-view":
+      return `open the ${REVIEW_SURFACE_LABELS[action.surface]}`;
     case "restore-checkpoint":
       return `restore preview revision ${action.checkpointId}`;
     case "focus-clause":

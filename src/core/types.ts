@@ -154,12 +154,28 @@ export interface DemoSetup {
   objectiveNote: string;
 }
 
-/** Which deterministic Markdown document an export produced. */
-export type ExportKind = "brief" | "redline";
+/** Which deterministic document an export produced. */
+export type ExportKind = "brief" | "redline" | "decision-log" | "tool-activity";
+
+export const EXPORT_KINDS: readonly ExportKind[] = [
+  "brief",
+  "redline",
+  "decision-log",
+  "tool-activity",
+];
 
 export const EXPORT_KIND_LABELS: Readonly<Record<ExportKind, string>> = {
   brief: "negotiation brief",
   redline: "redlined agreement",
+  "decision-log": "decision log",
+  "tool-activity": "tool activity log",
+};
+
+export const EXPORT_KIND_FORMATS: Readonly<Record<ExportKind, "md" | "json">> = {
+  brief: "md",
+  redline: "md",
+  "decision-log": "json",
+  "tool-activity": "json",
 };
 
 export type DecisionStatus = "pending" | "approved" | "rejected" | "edited";
@@ -217,7 +233,24 @@ export type ActivityKind =
   | "document"
   | "settings"
   | "export"
+  | "view"
   | "webmcp";
+
+/**
+ * Review surfaces whose opening is worth recording.
+ *
+ * Navigation is a real human action, and the guided demo derives two of its
+ * steps from it. Recording it keeps those steps honest — they tick because the
+ * human actually opened the surface, not because a script said so.
+ */
+export type ReviewSurface = "compare" | "preview" | "timeline" | "replay";
+
+export const REVIEW_SURFACE_LABELS: Readonly<Record<ReviewSurface, string>> = {
+  compare: "package comparison",
+  preview: "preview revision",
+  timeline: "revision timeline",
+  replay: "replay",
+};
 
 export type ToolName = "get_negotiation_context" | "stage_redline_package";
 

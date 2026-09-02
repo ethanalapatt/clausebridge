@@ -1,14 +1,17 @@
 import { FALLBACK_LIBRARY } from "@/core/seed/fallbackLibrary";
 import { effectiveClauseText } from "@/core/state";
-import type { ConstraintDraft } from "@/core/constraints";
+import type { ConstraintDraft, ConstraintRuleId } from "@/core/constraints";
 import type {
   AppState,
   ClauseType,
   DemoSetup,
+  ExportKind,
   FallbackEntry,
   FallbackPosture,
   PartyRole,
   PriorityTag,
+  ReviewSurface,
+  StagedEdit,
 } from "@/core/types";
 import type {
   NegotiationContextInput,
@@ -243,79 +246,168 @@ export function goldenPathSetup(state: AppState): DemoSetup {
 
 export type DemoStepId =
   | "load"
-  | "setup"
+  | "role"
+  | "lock"
+  | "constraints"
   | "context"
   | "stage"
-  | "decide"
+  | "compare"
+  | "accept-termination"
+  | "edit-retention"
+  | "reject-liability"
+  | "preview"
+  | "timeline"
   | "export";
 
 export interface DemoStep {
   id: DemoStepId;
   label: string;
+  /** One short sentence naming the next human action. */
   hint: string;
   done: boolean;
 }
 
+/** The two Must constraints the walkthrough asks for. */
+const GOLDEN_PATH_MUSTS: readonly ConstraintRuleId[] = [
+  "termination_notice_min_days",
+  "data_deletion_within_days",
+];
+
+function clauseIdOfType(state: AppState, clauseType: ClauseType): string | null {
+  return state.revision.clauses.find((clause) => clause.clauseType === clauseType)?.id ?? null;
+}
+
+function editsOnType(state: AppState, clauseType: ClauseType): StagedEdit[] {
+  const clauseId = clauseIdOfType(state, clauseType);
+  if (clauseId === null) return [];
+  return state.edits.filter((edit) => edit.clauseId === clauseId);
+}
+
+function viewed(state: AppState, surface: ReviewSurface): boolean {
+  return state.activity.some((entry) => entry.kind === "view" && entry.after === surface);
+}
+
+function exported(state: AppState, kind: ExportKind): boolean {
+  return state.activity.some((entry) => entry.kind === "export" && entry.after === kind);
+}
+
 /**
- * The in-product checklist.
+ * The in-product checklist, following the walkthrough in the elevation brief.
  *
- * Every step is *derived* from real state — a tool result actually recorded, a
- * package actually staged, a decision actually taken. Nothing here is a scripted
- * animation, so a step can only tick when the underlying operation really ran.
+ * Every step is *derived from real state* — a tool call actually recorded with
+ * its clause IDs, a package actually staged, a decision actually taken, a
+ * surface the human actually opened, a file actually written. Nothing here fakes
+ * progress or drives the app on the user's behalf, so a step can only tick when
+ * the underlying operation really ran. Freeform use is unaffected: the strip
+ * reports, it does not gate.
  */
 export function goldenPathSteps(state: AppState): DemoStep[] {
-  const setup = goldenPathSetup(state);
-  const has = (list: readonly string[], ids: readonly string[]) =>
-    ids.length > 0 && ids.every((id) => list.includes(id));
+  const liabilityId = clauseIdOfType(state, "liability");
 
-  const setupDone =
-    state.partyRole === setup.partyRole &&
-    has(state.selectedClauseIds, setup.selectedClauseIds) &&
-    has(state.nonNegotiableClauseIds, setup.nonNegotiableClauseIds) &&
-    GOLDEN_PATH_PRIORITIES.every((area) => state.priorityAreas.includes(area));
+  // A context call counts only when it actually resolved all three demo clauses.
+  const wanted = clauseIdsOfTypes(state, GOLDEN_PATH_CLAUSE_TYPES);
+  const contextDone =
+    wanted.length > 0 &&
+    state.toolCalls.some(
+      (call) =>
+        call.tool === "get_negotiation_context" &&
+        call.outcome === "ok" &&
+        wanted.every((id) => call.clauseIds.includes(id)),
+    );
 
-  const contextDone = state.activity.some(
-    (entry) => entry.tool === "get_negotiation_context" && entry.kind === "tool-result",
+  const terminationAccepted = editsOnType(state, "termination").some(
+    (edit) => edit.status === "approved" || edit.status === "edited",
   );
-
-  const decided = state.edits.filter((edit) => edit.status !== "pending");
+  const retentionEdited = editsOnType(state, "data_retention").some(
+    (edit) => edit.status === "edited",
+  );
+  const liabilityRejected =
+    editsOnType(state, "liability").some((edit) => edit.status === "rejected") &&
+    liabilityId !== null &&
+    state.nonNegotiableClauseIds.includes(liabilityId);
 
   return [
     {
       id: "load",
-      label: "Open the fictional agreement",
-      hint: "Northstar SaaS Services Agreement — Fictional Demo",
+      label: "Open the agreement",
+      hint: "The fictional Northstar SaaS Services Agreement is already loaded.",
       done: state.revision.clauses.length > 0,
     },
     {
-      id: "setup",
-      label: "Set your posture",
-      hint: "Customer · Liability locked · Termination and Data retention prioritised",
-      done: setupDone,
+      id: "role",
+      label: "Review as the Customer",
+      hint: "Pick the Customer role on the objective board.",
+      done: state.partyRole === "customer",
+    },
+    {
+      id: "lock",
+      label: "Lock Liability",
+      hint: "Mark the Limitation of Liability clause non-negotiable.",
+      done: liabilityId !== null && state.nonNegotiableClauseIds.includes(liabilityId),
+    },
+    {
+      id: "constraints",
+      label: "State two Must constraints",
+      hint: "Add Must conditions for termination notice and data deletion.",
+      done: GOLDEN_PATH_MUSTS.every((ruleId) =>
+        state.constraints.some(
+          (constraint) => constraint.ruleId === ruleId && constraint.severity === "must",
+        ),
+      ),
     },
     {
       id: "context",
       label: "Retrieve clause context",
-      hint: "get_negotiation_context returns exact text and fictional fallbacks",
+      hint: "Run get_negotiation_context for Liability, Termination and Data retention.",
       done: contextDone,
     },
     {
       id: "stage",
-      label: "Stage the Customer Baseline",
-      hint: "stage_redline_package proposes three redlines; nothing is applied yet",
-      done: state.packages.length > 0,
+      label: "Stage two alternatives",
+      hint: "Stage at least two contrasting packages through stage_redline_package.",
+      done: state.packages.length >= 2,
     },
     {
-      id: "decide",
-      label: "Approve, edit, reject",
-      hint: "Each redline is decided independently, with an optional note",
-      done: state.edits.length > 0 && decided.length === state.edits.length,
+      id: "compare",
+      label: "Compare the alternatives",
+      hint: "Open Compare to see each package against your constraints.",
+      done: viewed(state, "compare"),
+    },
+    {
+      id: "accept-termination",
+      label: "Accept a Termination proposal",
+      hint: "Choose one termination alternative and approve it.",
+      done: terminationAccepted,
+    },
+    {
+      id: "edit-retention",
+      label: "Edit and accept Data retention",
+      hint: "Rewrite a data-retention proposal in your own words, then save it.",
+      done: retentionEdited,
+    },
+    {
+      id: "reject-liability",
+      label: "Reject Liability, keep it manual",
+      hint: "Reject the liability proposal and leave the clause locked for manual review.",
+      done: liabilityRejected,
+    },
+    {
+      id: "preview",
+      label: "See the preview revision",
+      hint: "Open Preview to read the agreement your decisions produced.",
+      done: state.checkpoints.length > 0 && viewed(state, "preview"),
+    },
+    {
+      id: "timeline",
+      label: "Replay the timeline",
+      hint: "Open Timeline and step through what the human and the tools each did.",
+      done: viewed(state, "replay"),
     },
     {
       id: "export",
-      label: "Preview and download",
-      hint: "Deterministic negotiation brief and redlined Markdown",
-      done: state.activity.some((entry) => entry.kind === "export"),
+      label: "Export the record",
+      hint: "Download the negotiation brief and the redlined Markdown.",
+      done: exported(state, "brief") && exported(state, "redline"),
     },
   ];
 }

@@ -7,6 +7,7 @@ import {
   renderRedlinedMarkdown,
   safeSlug,
 } from "@/core/exports";
+import { buildPackage } from "@/core/demo";
 import { stageRedlinePackage } from "@/core/handlers";
 import type { HandlerContext } from "@/core/handlers";
 import { toDraft } from "@/core/segmentation";
@@ -289,5 +290,125 @@ describe("renderExport", () => {
     const { state } = decidedState();
     expect(renderExport(state, "brief")).toBe(renderNegotiationBrief(state));
     expect(renderExport(state, "redline")).toBe(renderRedlinedMarkdown(state));
+  });
+});
+
+describe("JSON export bundle", () => {
+  const AT_JSON = "2026-01-01T00:00:00.000Z";
+  const CTX_JSON: HandlerContext = { source: "local-handler-test", at: AT_JSON };
+
+  function bundleState(): AppState {
+    let state = createInitialState();
+    state = reduce(
+      state,
+      { type: "add-constraint", ruleId: "data_deletion_within_days", severity: "must", value: 30 },
+      AT_JSON,
+    );
+    state = reduce(state, { type: "set-objective-note", note: "Exit cleanly." }, AT_JSON);
+    state = stageRedlinePackage(state, buildPackage(state, "protective")!, CTX_JSON).state;
+    state = reduce(state, { type: "approve-edit", editId: "pkg-0001-e03" }, AT_JSON);
+    return state;
+  }
+
+  it("names the JSON exports with a .json extension", () => {
+    const state = createInitialState();
+    expect(exportFilename(state, "decision-log")).toBe(
+      "northstar-saas-services-agreement-fictional-demo-nsa-r1-decision-log.json",
+    );
+    expect(exportFilename(state, "tool-activity")).toBe(
+      "northstar-saas-services-agreement-fictional-demo-nsa-r1-tool-activity.json",
+    );
+  });
+
+  it("renders a decision log that parses and carries the disclaimer and revision", () => {
+    const payload = JSON.parse(renderExport(bundleState(), "decision-log"));
+
+    expect(payload.disclaimer).toContain("not legal advice");
+    expect(payload.document.revisionId).toBe("NSA-r1");
+    expect(payload.document.fictional).toBe(true);
+    expect(payload.reviewingAs).toBe("customer");
+    expect(payload.objectives.note).toBe("Exit cleanly.");
+  });
+
+  it("records each constraint with its evidence and the clause it read", () => {
+    const payload = JSON.parse(renderExport(bundleState(), "decision-log"));
+    const [constraint] = payload.objectives.constraints;
+
+    expect(constraint.ruleId).toBe("data_deletion_within_days");
+    expect(constraint.severity).toBe("must");
+    expect(constraint.status).toBe("satisfied");
+    expect(constraint.evaluatedAgainstClauseId).toBe("NSA-r1-07");
+    expect(constraint.evidence).toContain("within thirty (30) days");
+  });
+
+  it("records every proposal with its decision, provenance and both texts", () => {
+    const payload = JSON.parse(renderExport(bundleState(), "decision-log"));
+    const [pkg] = payload.packages;
+
+    expect(pkg.packageLabel).toBe("Customer-Protective");
+    expect(pkg.stagedBy).toBe("local handler test");
+    expect(pkg.counts.approved).toBe(1);
+
+    const approved = pkg.proposals.find((item: { governing: boolean }) => item.governing);
+    expect(approved.decision).toBe("approved");
+    expect(approved.fallback.fallbackId).toBe("fb-data_retention-customer-1");
+    expect(approved.originalText).toContain("Northstar may retain Customer Data");
+    expect(approved.acceptedText).toContain("shall permanently delete");
+  });
+
+  it("records the preview revisions and the ordered event log", () => {
+    const payload = JSON.parse(renderExport(bundleState(), "decision-log"));
+
+    expect(payload.previewRevisions).toHaveLength(1);
+    expect(payload.previewRevisions[0].id).toBe("rev-0001");
+
+    const seqs = payload.events.map((event: { seq: number }) => event.seq);
+    expect([...seqs].sort((a: number, b: number) => a - b)).toEqual(seqs);
+    expect(payload.events[0].id).toBe("ev-0001");
+  });
+
+  it("renders a tool-activity log with the exact input and output re-attached", () => {
+    const payload = JSON.parse(renderExport(bundleState(), "tool-activity"));
+
+    expect(payload.calls).toHaveLength(1);
+    const [call] = payload.calls;
+    expect(call.tool).toBe("stage_redline_package");
+    expect(call.source).toBe("local-handler-test");
+    expect(call.outcome).toBe("ok");
+    expect(call.input.packageLabel).toBe("Customer-Protective");
+    expect(call.output.ok).toBe(true);
+    expect(call.stateEffect).toContain("awaiting a separate human decision");
+  });
+
+  it("states the WebMCP status and never presents a local call as native", () => {
+    const payload = JSON.parse(renderExport(bundleState(), "tool-activity"));
+    expect(payload.webmcp.status).toBe("checking");
+    expect(payload.webmcp.note).toContain("not through a native WebMCP agent");
+    expect(payload.calls.every((call: { source: string }) => call.source !== "native-webmcp")).toBe(
+      true,
+    );
+  });
+
+  it("records a rejected call in the tool activity log", () => {
+    const state = stageRedlinePackage(
+      createInitialState(),
+      { packageLabel: "Bad", edits: [] },
+      CTX_JSON,
+    ).state;
+    const payload = JSON.parse(renderExport(state, "tool-activity"));
+
+    expect(payload.calls[0].outcome).toBe("rejected");
+    expect(payload.calls[0].errorCode).toBe("EMPTY_PACKAGE");
+  });
+
+  it("is deterministic and free of wall-clock time", () => {
+    const state = bundleState();
+    expect(renderExport(state, "decision-log")).toBe(renderExport(state, "decision-log"));
+    expect(renderExport(state, "tool-activity")).toBe(renderExport(state, "tool-activity"));
+
+    // Every timestamp in the output is the one the caller supplied.
+    for (const match of renderExport(state, "decision-log").matchAll(/\d{4}-\d{2}-\d{2}T[\d:.]+Z/g)) {
+      expect(match[0]).toBe(AT_JSON);
+    }
   });
 });

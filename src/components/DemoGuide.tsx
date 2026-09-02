@@ -57,7 +57,7 @@ export function DemoGuide() {
 
         <Button
           size="sm"
-          variant={current?.id === "setup" ? "primary" : "default"}
+          variant={current?.id === "lock" || current?.id === "constraints" ? "primary" : "default"}
           title="Sets role, priorities, the non-negotiable marker and the clause selection in one step"
           onClick={() =>
             store.dispatch({
