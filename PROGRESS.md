@@ -53,7 +53,8 @@ persistence; redline migration across revisions; whole-document comparison; keyb
 | B | State architecture hardening: objective board, structured timeline events, tool-call provenance records, preview-revision checkpoints, one-approval-per-clause | 28 new tests in `objectives.test.ts`; `npm run verify` exit 0 (264 tests) | `c5daf6a` | `c5daf6a` — remote SHA verified |
 | C | Three contrasting alternative packages + the review layer joining constraints to proposals (`src/core/review.ts`) | 25 new tests in `review.test.ts`; `npm run verify` exit 0 (289 tests) | `d336517` | `d336517` — remote SHA verified |
 | D | Replay and revision inspector (`src/core/replay.ts`), 13-step golden-path director, JSON export bundle | 16 new replay tests, 9 new export tests, rewritten 13-step integration test; `npm run verify` exit 0 (316 tests) | `d4a7a13` | `d4a7a13` — remote SHA verified |
-| E+F | The product surfaces: objective board, package comparison, WebMCP provenance panel, timeline/replay/revision inspector, export bundle | `npm run verify` exit 0 (316 tests); loopback SSR smoke test HTTP 200, 61,176 bytes, no dev-server errors | _pending_ | _pending_ |
+| E+F | The product surfaces: objective board, package comparison, WebMCP provenance panel, timeline/replay/revision inspector, export bundle | `npm run verify` exit 0 (316 tests); loopback SSR smoke test HTTP 200, 61,176 bytes, no dev-server errors | `51d6217` | `51d6217` — remote SHA verified |
+| G | 13-step demo director, presentation mode, live region for screen readers, document relationship map | 12 new relationship tests; `npm run verify` exit 0 (328 tests) | _pending_ | _pending_ |
 
 ---
 

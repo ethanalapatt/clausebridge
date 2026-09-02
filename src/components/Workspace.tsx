@@ -4,12 +4,13 @@ import { useEffect, useMemo, useState } from "react";
 
 import { browserSessionStorage, loadPersistedSession } from "@/app/sessionStorage";
 import { ClauseBridgeStore } from "@/app/store";
-import { StoreContext } from "@/app/useClauseBridge";
+import { StoreContext, useSession } from "@/app/useClauseBridge";
 import { AgreementPane } from "@/components/AgreementPane";
 import { DemoGuide } from "@/components/DemoGuide";
 import { Header } from "@/components/Header";
 import { KeyboardShortcuts } from "@/components/KeyboardShortcuts";
 import { ObjectiveBoard } from "@/components/ObjectiveBoard";
+import { PresentationMode } from "@/components/PresentationMode";
 import { PreviewDialog } from "@/components/PreviewDialog";
 import { RightRail } from "@/components/RightRail";
 import { Button, cx } from "@/components/ui";
@@ -33,6 +34,7 @@ export function Workspace() {
     [],
   );
   const [previewOpen, setPreviewOpen] = useState(false);
+  const [presenting, setPresenting] = useState(false);
   const [restored, setRestored] = useState(false);
   // Below `lg` the three panes do not fit side by side, so they become tabs
   // rather than disappearing. Every control stays reachable on a phone.
@@ -97,7 +99,12 @@ export function Workspace() {
           </div>
         )}
 
-        <DemoGuide />
+        <DemoGuide
+          presenting={presenting}
+          onTogglePresentation={() => setPresenting((open) => !open)}
+        />
+
+        <LiveAnnouncer />
 
         <nav
           aria-label="Workspace pane"
@@ -148,7 +155,32 @@ export function Workspace() {
         </main>
 
         {previewOpen && <PreviewDialog onClose={() => setPreviewOpen(false)} />}
+        {presenting && <PresentationMode onExit={() => setPresenting(false)} />}
       </div>
     </StoreContext.Provider>
+  );
+}
+
+/**
+ * Announces what just happened to a screen reader.
+ *
+ * Staging, approving, rejecting and tool errors all change state somewhere other
+ * than where the control was pressed, so without this a keyboard user gets no
+ * confirmation that anything happened. It reads the newest recorded event, which
+ * is the same sentence the timeline shows — nothing here is written for the
+ * announcement alone.
+ */
+function LiveAnnouncer() {
+  const session = useSession();
+  const latest = session.present.activity.at(-1) ?? null;
+
+  return (
+    <div aria-live="polite" aria-atomic="true" className="sr-only">
+      {latest === null
+        ? ""
+        : latest.kind === "tool-error"
+          ? `Tool call rejected. ${latest.detail ?? latest.summary}`
+          : latest.summary}
+    </div>
   );
 }

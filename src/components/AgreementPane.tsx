@@ -5,6 +5,7 @@ import { useEffect, useRef } from "react";
 import { useSession, useStore } from "@/app/useClauseBridge";
 import { InlineDiff } from "@/components/InlineDiff";
 import { RedlineCard } from "@/components/RedlineCard";
+import { RelationshipMap } from "@/components/RelationshipMap";
 import { Chip, DecisionChip, Mono, cx } from "@/components/ui";
 import {
   clauseDecisionStatus,
@@ -88,6 +89,10 @@ export function AgreementPane() {
           Revision <Mono>{state.revision.revisionId}</Mono> · {state.revision.clauses.length} clauses
           · fictional sample, not a real contract
         </p>
+
+        <div className="mt-5">
+          <RelationshipMap />
+        </div>
 
         <div className="mt-7 space-y-7">
           {state.revision.clauses.length === 0 ? (
