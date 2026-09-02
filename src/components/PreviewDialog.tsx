@@ -10,12 +10,14 @@ import type { ExportKind } from "@/core/types";
 const VIEWS: readonly { kind: ExportKind; label: string }[] = [
   { kind: "brief", label: "Negotiation brief" },
   { kind: "redline", label: "Redlined Markdown" },
+  { kind: "decision-log", label: "Decision log (JSON)" },
+  { kind: "tool-activity", label: "Tool activity (JSON)" },
 ];
 
 /**
- * Deterministic export previews. Both are rendered from state by pure functions
- * and contain no wall-clock time, so the same decisions always produce the same
- * document.
+ * Deterministic export previews. Every one is rendered from state by a pure
+ * function and contains no wall-clock time, so the same decisions always produce
+ * the same document.
  */
 export function PreviewDialog({ onClose }: { onClose: () => void }) {
   const [kind, setKind] = useState<ExportKind>("brief");
@@ -37,6 +39,12 @@ export function PreviewDialog({ onClose }: { onClose: () => void }) {
    * the overlay — which is inert to the mouse but not to the keyboard, so a
    * keyboard user ends up interacting with content they cannot see.
    */
+  // Reading the preview is how a human sees the revision their decisions
+  // produced, and a guided-demo step depends on it, so it is recorded.
+  useEffect(() => {
+    store.dispatch({ type: "record-view", surface: "preview" });
+  }, [store]);
+
   useEffect(() => {
     const previouslyFocused = document.activeElement as HTMLElement | null;
     closeRef.current?.focus();

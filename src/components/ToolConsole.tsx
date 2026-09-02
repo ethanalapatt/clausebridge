@@ -4,7 +4,7 @@ import { useState } from "react";
 
 import { useSession, useStore } from "@/app/useClauseBridge";
 import { Button, Chip, EmptyState, Mono, cx } from "@/components/ui";
-import { buildBaselinePackage, buildContextInput } from "@/core/demo";
+import { PACKAGE_PRESETS, buildContextInput, buildPackage } from "@/core/demo";
 import type { NegotiationContextInput, StageRedlineInput } from "@/core/handlers";
 
 /**
@@ -24,7 +24,7 @@ export function ToolConsole() {
     JSON.stringify(buildContextInput(state), null, 2),
   );
   const [packageJson, setPackageJson] = useState(() => {
-    const built = buildBaselinePackage(state);
+    const built = buildPackage(state, "protective");
     return built === null ? "" : JSON.stringify(built, null, 2);
   });
   const [output, setOutput] = useState<string | null>(null);
@@ -89,18 +89,48 @@ export function ToolConsole() {
         rows={9}
       />
 
+      <div className="rounded-md border border-ink-200 p-3">
+        <p className="text-[10px] font-semibold uppercase tracking-wide text-ink-400">
+          Load an alternative
+        </p>
+        <p className="mt-1 text-[10px] leading-snug text-ink-500">
+          Each preset is assembled from the bundled fictional library. Load one, then run the
+          handler — or edit the JSON first.
+        </p>
+        <div className="mt-1.5 flex flex-wrap gap-1.5">
+          {PACKAGE_PRESETS.map((preset) => {
+            const built = buildPackage(state, preset.posture);
+            return (
+              <Button
+                key={preset.posture}
+                size="sm"
+                disabled={built === null}
+                title={
+                  built === null
+                    ? "The library has no alternative for this document and role"
+                    : preset.blurb
+                }
+                onClick={() => setPackageJson(JSON.stringify(built, null, 2))}
+              >
+                {preset.label}
+              </Button>
+            );
+          })}
+        </div>
+      </div>
+
       <ToolBlock
         name="stage_redline_package"
         description="Stages clause-specific redlines for independent approval. Does not finalize anything."
         value={packageJson}
         onChange={setPackageJson}
         onReset={() => {
-          const built = buildBaselinePackage(state);
+          const built = buildPackage(state, "protective");
           setPackageJson(built === null ? "" : JSON.stringify(built, null, 2));
         }}
         onRun={runStage}
         rows={12}
-        resetLabel="Load Customer Baseline"
+        resetLabel="Reset to Customer-Protective"
       />
 
       <div>

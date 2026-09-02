@@ -9,7 +9,7 @@ import { AgreementPane } from "@/components/AgreementPane";
 import { DemoGuide } from "@/components/DemoGuide";
 import { Header } from "@/components/Header";
 import { KeyboardShortcuts } from "@/components/KeyboardShortcuts";
-import { LeftRail } from "@/components/LeftRail";
+import { ObjectiveBoard } from "@/components/ObjectiveBoard";
 import { PreviewDialog } from "@/components/PreviewDialog";
 import { RightRail } from "@/components/RightRail";
 import { Button, cx } from "@/components/ui";
@@ -17,7 +17,7 @@ import { hasRestorableWork } from "@/core/persistence";
 import { registerClauseBridgeTools } from "@/webmcp/register";
 
 const PANES = [
-  { id: "controls", label: "Controls" },
+  { id: "controls", label: "Objectives" },
   { id: "agreement", label: "Agreement" },
   { id: "agent", label: "Agent" },
 ] as const;
@@ -128,7 +128,7 @@ export function Workspace() {
               pane === "controls" ? "flex" : "hidden",
             )}
           >
-            <LeftRail />
+            <ObjectiveBoard />
           </div>
 
           <div

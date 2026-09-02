@@ -1,10 +1,13 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import { useSession, useStore } from "@/app/useClauseBridge";
-import { InlineDiff } from "@/components/InlineDiff";
+import { ExportPanel } from "@/components/ExportPanel";
+import { PackageComparison } from "@/components/PackageComparison";
 import { RedlineCard } from "@/components/RedlineCard";
+import { Timeline } from "@/components/Timeline";
+import { ToolActivity } from "@/components/ToolActivity";
 import { ToolConsole } from "@/components/ToolConsole";
 import {
   Button,
@@ -13,36 +16,32 @@ import {
   EmptyState,
   Mono,
   Panel,
-  PriorityChip,
   cx,
 } from "@/components/ui";
-import { exportFilename, renderExport } from "@/core/exports";
 import { planMigration } from "@/core/migration";
-import { compareRevisions } from "@/core/revisionDiff";
-import { buildSeedRevision } from "@/core/segmentation";
 import { FALLBACK_LIBRARY } from "@/core/seed/fallbackLibrary";
-import { canUndo, effectiveClauseText, findClause, isEditStale, undoLabel } from "@/core/state";
-import { CLAUSE_TYPE_LABELS, INVOCATION_SOURCE_LABELS } from "@/core/types";
-import type { ExportKind } from "@/core/types";
+import { canUndo, findClause, isEditStale, undoLabel } from "@/core/state";
+import { CLAUSE_TYPE_LABELS } from "@/core/types";
 
-const TABS = [
-  "Tools",
-  "Fallbacks",
-  "Redlines",
-  "Decisions",
-  "Changes",
-  "Export",
-  "Activity",
-] as const;
+const TABS = ["Agent", "Compare", "Review", "Timeline", "Export"] as const;
 type Tab = (typeof TABS)[number];
 
-/** Pane 3: fallback context, staged redlines, decisions, and tool activity. */
+/** Pane 3: the agent surface, the comparison, the review loop and the record. */
 export function RightRail() {
-  const [tab, setTab] = useState<Tab>("Tools");
+  const [tab, setTab] = useState<Tab>("Compare");
   const session = useSession();
+  const store = useStore();
   const state = session.present;
 
   const pendingCount = state.edits.filter((edit) => edit.status === "pending").length;
+
+  // Opening the comparison is a real human action and two guided-demo steps
+  // depend on it, so it is recorded like any other.
+  useEffect(() => {
+    if (tab === "Compare" && state.packages.length > 0) {
+      store.dispatch({ type: "record-view", surface: "compare" });
+    }
+  }, [tab, state.packages.length, store]);
 
   return (
     <Panel className="min-h-0" bodyClassName="min-h-0 overflow-y-auto p-3">
@@ -65,7 +64,7 @@ export function RightRail() {
               )}
             >
               {item}
-              {item === "Redlines" && pendingCount > 0 && (
+              {item === "Review" && pendingCount > 0 && (
                 <span
                   aria-label={`${pendingCount} awaiting decision`}
                   className="rounded-full bg-proposed-500 px-1.5 text-[9px] text-white"
@@ -79,28 +78,52 @@ export function RightRail() {
       </div>
 
       <div role="tabpanel" id="rail-panel" aria-labelledby={`rail-tab-${tab}`}>
-        {tab === "Tools" && <ToolConsole />}
-        {tab === "Fallbacks" && <FallbacksTab />}
-        {tab === "Redlines" && <RedlinesTab />}
-        {tab === "Decisions" && <DecisionsTab />}
-        {tab === "Changes" && <ChangesTab />}
-        {tab === "Export" && <ExportTab />}
-        {tab === "Activity" && <ActivityTab />}
+        {tab === "Agent" && <AgentTab />}
+        {tab === "Compare" && <PackageComparison />}
+        {tab === "Review" && <ReviewTab />}
+        {tab === "Timeline" && <Timeline />}
+        {tab === "Export" && <ExportPanel />}
       </div>
     </Panel>
   );
 }
 
-function FallbacksTab() {
+/** Provenance first, then the labeled local control, then the bundled library. */
+function AgentTab() {
+  return (
+    <div className="space-y-3">
+      <ToolActivity />
+
+      <details className="rounded-md border border-ink-200">
+        <summary className="cursor-pointer px-2.5 py-2 text-[11px] font-medium text-ink-700">
+          Local handler test console
+        </summary>
+        <div className="border-t border-ink-100 p-2.5">
+          <ToolConsole />
+        </div>
+      </details>
+
+      <details className="rounded-md border border-ink-200">
+        <summary className="cursor-pointer px-2.5 py-2 text-[11px] font-medium text-ink-700">
+          Bundled fallback library
+        </summary>
+        <div className="border-t border-ink-100 p-2.5">
+          <FallbackLibrary />
+        </div>
+      </details>
+    </div>
+  );
+}
+
+function FallbackLibrary() {
   const store = useStore();
   const session = useSession();
   const state = session.present;
 
   const relevantTypes = useMemo(() => {
-    const ids = state.selectedClauseIds.length > 0 ? state.selectedClauseIds : null;
-    if (ids === null) return null;
+    if (state.selectedClauseIds.length === 0) return null;
     return new Set(
-      ids
+      state.selectedClauseIds
         .map((id) => findClause(state, id)?.clauseType)
         .filter((type): type is NonNullable<typeof type> => type !== undefined),
     );
@@ -111,19 +134,17 @@ function FallbacksTab() {
       state.partyRole === "neutral"
         ? entry.role === "neutral"
         : entry.role === state.partyRole || entry.role === "neutral";
-    const typeMatch = relevantTypes === null || relevantTypes.has(entry.clauseType);
-    return roleMatch && typeMatch;
+    return roleMatch && (relevantTypes === null || relevantTypes.has(entry.clauseType));
   });
 
   return (
-    <div className="space-y-3">
-      <div className="rounded-md border border-ink-200 bg-ink-50 px-3 py-2.5 text-[11px] leading-relaxed text-ink-700">
+    <div className="space-y-2">
+      <p className="rounded-md border border-ink-200 bg-ink-50 px-2.5 py-2 text-[10px] leading-relaxed text-ink-700">
         <strong className="font-semibold">Fictional demo library.</strong> Every entry was invented
         for this prototype. Nothing was retrieved from a real contract or the web, and no entry is
-        offered as legally correct or preferable. Filtered to the{" "}
-        <strong>{state.partyRole}</strong> posture
-        {relevantTypes === null ? " across all clause types." : " for your selected clauses."}
-      </div>
+        offered as legally correct or preferable. This is the only wording a proposal can carry —
+        the agent chooses among these, it does not draft.
+      </p>
 
       {entries.length === 0 ? (
         <EmptyState>
@@ -136,31 +157,30 @@ function FallbacksTab() {
           );
 
           return (
-            <div key={entry.id} className="rounded-md border border-ink-200 p-3">
+            <div key={entry.id} className="rounded-md border border-ink-200 p-2.5">
               <div className="flex flex-wrap items-center gap-1.5">
                 <Chip tone="brand">{CLAUSE_TYPE_LABELS[entry.clauseType]}</Chip>
                 <Chip>{entry.role}</Chip>
+                <Chip tone="proposed">{entry.posture}</Chip>
                 <Mono>{entry.id}</Mono>
               </div>
               <h4 className="mt-1.5 text-[12px] font-semibold text-ink-900">{entry.label}</h4>
-              <p className="mt-1 text-[11px] leading-relaxed text-ink-500">{entry.note}</p>
-              <p className="mt-2 max-h-32 overflow-y-auto whitespace-pre-wrap rounded border border-ink-100 bg-ink-50 p-2 text-[11px] leading-relaxed text-ink-700">
+              <p className="mt-1 text-[10px] leading-relaxed text-ink-500">{entry.note}</p>
+              <p className="mt-1.5 max-h-32 overflow-y-auto whitespace-pre-wrap rounded border border-ink-100 bg-ink-50 p-2 text-[10px] leading-relaxed text-ink-700">
                 {entry.text}
               </p>
               {targets.length > 0 && (
-                <div className="mt-2 flex flex-wrap items-center gap-1.5">
-                  <span className="text-[10px] text-ink-400">Applies to:</span>
+                <div className="mt-1.5 flex flex-wrap items-center gap-1">
+                  <span className="text-[9px] text-ink-400">Applies to:</span>
                   {targets.map((clause) => (
-                    <Button
+                    <button
                       key={clause.id}
-                      size="sm"
-                      variant="ghost"
-                      onClick={() =>
-                        store.dispatch({ type: "focus-clause", clauseId: clause.id })
-                      }
+                      type="button"
+                      onClick={() => store.dispatch({ type: "focus-clause", clauseId: clause.id })}
+                      className="rounded bg-ink-100 px-1 font-mono text-[9px] text-ink-700 hover:bg-bridge-100 hover:text-bridge-700"
                     >
                       {clause.id}
-                    </Button>
+                    </button>
                   ))}
                 </div>
               )}
@@ -172,99 +192,115 @@ function FallbacksTab() {
   );
 }
 
-function RedlinesTab() {
+/**
+ * The review loop: where every proposal stands and how it got there. Distinct
+ * from Compare, which is organised by clause so alternatives sit together; this
+ * is organised by package and carries the decision history.
+ */
+function ReviewTab() {
   const store = useStore();
   const session = useSession();
   const state = session.present;
 
-  if (state.packages.length === 0) {
-    return (
-      <EmptyState>
-        No redline package has been staged. Run <Mono>stage_redline_package</Mono> from the Tools
-        tab, or let a connected agent call it.
-      </EmptyState>
-    );
-  }
+  const counts = {
+    pending: state.edits.filter((edit) => edit.status === "pending").length,
+    approved: state.edits.filter((edit) => edit.status === "approved").length,
+    edited: state.edits.filter((edit) => edit.status === "edited").length,
+    rejected: state.edits.filter((edit) => edit.status === "rejected").length,
+  };
+  const pendingUndo = undoLabel(session);
+  const decisions = state.activity.filter((entry) => entry.kind === "decision");
 
   return (
     <div className="space-y-3">
+      <div className="flex flex-wrap items-center gap-1.5">
+        <DecisionChip status="pending" />
+        <span className="text-[11px] font-semibold text-ink-900">{counts.pending}</span>
+        <DecisionChip status="approved" />
+        <span className="text-[11px] font-semibold text-ink-900">{counts.approved}</span>
+        <DecisionChip status="edited" />
+        <span className="text-[11px] font-semibold text-ink-900">{counts.edited}</span>
+        <DecisionChip status="rejected" />
+        <span className="text-[11px] font-semibold text-ink-900">{counts.rejected}</span>
+
+        <Button
+          size="sm"
+          variant="ghost"
+          className="ml-auto"
+          disabled={!canUndo(session)}
+          title={pendingUndo === null ? "Nothing to undo" : `Undo: ${pendingUndo}`}
+          onClick={store.undo}
+        >
+          ↶ Undo
+        </Button>
+      </div>
+
       <StaleRedlineNotice />
 
-      <p className="rounded-md border border-ink-200 bg-ink-50 px-3 py-2 text-[11px] leading-relaxed text-ink-700">
-        Staging changes nothing on its own. Every redline below is decided on its own — approve it,
-        rewrite it in your own words, or reject it — and the approved agreement only reflects what
-        you accept.
-      </p>
+      {state.packages.length === 0 ? (
+        <EmptyState>
+          Nothing to review yet. Stage a package from the Compare tab, or let a connected agent call{" "}
+          <Mono>stage_redline_package</Mono>.
+        </EmptyState>
+      ) : (
+        <>
+          <p className="rounded-md border border-ink-200 bg-ink-50 px-2.5 py-2 text-[10px] leading-relaxed text-ink-700">
+            Staging changes nothing on its own. Every proposal is decided on its own — accept it,
+            rewrite it in your own words, or reject it — and the agreement only reflects what you
+            accept.
+          </p>
 
-      {state.packages.map((pkg) => {
-        const edits = state.edits.filter((edit) => edit.packageId === pkg.packageId);
-        const pending = edits.filter((edit) => edit.status === "pending").length;
+          {state.packages.map((pkg) => {
+            const edits = state.edits.filter((edit) => edit.packageId === pkg.packageId);
 
-        return (
-          <section key={pkg.packageId} className="rounded-md border border-ink-200">
-            <header className="border-b border-ink-100 px-3 py-2">
-              <div className="flex flex-wrap items-center gap-1.5">
-                <span className="text-[12px] font-semibold text-ink-900">{pkg.packageLabel}</span>
-                <Mono>{pkg.packageId}</Mono>
-              </div>
-              <p className="mt-0.5 text-[10px] text-ink-400">
-                Staged via {INVOCATION_SOURCE_LABELS[pkg.source]} against {pkg.revisionId} ·{" "}
-                {edits.length} redline(s)
-                {pending > 0 && ` · ${pending} awaiting decision`}
-              </p>
+            return (
+              <section key={pkg.packageId} className="rounded-md border border-ink-200">
+                <header className="border-b border-ink-100 px-2.5 py-2">
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    <span className="text-[12px] font-semibold text-ink-900">
+                      {pkg.packageLabel}
+                    </span>
+                    <Mono>{pkg.packageId}</Mono>
+                  </div>
+                </header>
 
-              {pending > 0 && (
-                <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
-                  <Button
-                    size="sm"
-                    variant="approve"
-                    title={`Approve the ${pending} redline(s) still awaiting a decision`}
-                    onClick={() =>
-                      store.dispatch({
-                        type: "decide-package",
-                        packageId: pkg.packageId,
-                        decision: "approved",
-                      })
-                    }
-                  >
-                    Approve remaining {pending}
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="reject"
-                    title={`Reject the ${pending} redline(s) still awaiting a decision`}
-                    onClick={() =>
-                      store.dispatch({
-                        type: "decide-package",
-                        packageId: pkg.packageId,
-                        decision: "rejected",
-                      })
-                    }
-                  >
-                    Reject remaining {pending}
-                  </Button>
-                  <span className="text-[10px] text-ink-400">
-                    Decisions you have already made are kept.
-                  </span>
+                <div className="space-y-2 p-2">
+                  {edits.map((edit) => (
+                    <div key={edit.editId}>
+                      {isEditStale(state, edit) && (
+                        <p className="mb-1">
+                          <Chip tone="warning">Stale — clause ID retired by a later revision</Chip>
+                        </p>
+                      )}
+                      <RedlineCard edit={edit} state={state} />
+                    </div>
+                  ))}
                 </div>
-              )}
-            </header>
+              </section>
+            );
+          })}
+        </>
+      )}
 
-            <div className="space-y-2 p-2">
-              {edits.map((edit) => (
-                <div key={edit.editId}>
-                  {isEditStale(state, edit) && (
-                    <p className="mb-1">
-                      <Chip tone="warning">Stale — clause ID retired by a later revision</Chip>
-                    </p>
-                  )}
-                  <RedlineCard edit={edit} state={state} />
-                </div>
-              ))}
-            </div>
-          </section>
-        );
-      })}
+      <div>
+        <h3 className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-ink-400">
+          Decisions taken
+        </h3>
+        {decisions.length === 0 ? (
+          <EmptyState>No decision has been recorded yet.</EmptyState>
+        ) : (
+          <ol className="space-y-1">
+            {[...decisions].reverse().map((entry) => (
+              <li
+                key={entry.id}
+                className="rounded border border-ink-100 bg-ink-50 px-2 py-1 text-[10px] leading-snug text-ink-700"
+              >
+                <span className="font-mono text-ink-400">{entry.id}</span> {entry.summary}
+              </li>
+            ))}
+          </ol>
+        )}
+      </div>
     </div>
   );
 }
@@ -338,330 +374,5 @@ function StaleRedlineNotice() {
         </p>
       )}
     </div>
-  );
-}
-
-/**
- * The decision log: where each clause currently stands and how it got there.
- * Distinct from the Activity timeline, which is the raw chronological record —
- * this is the settled position, newest decision per redline.
- */
-function DecisionsTab() {
-  const store = useStore();
-  const session = useSession();
-  const state = session.present;
-
-  const counts = {
-    pending: state.edits.filter((edit) => edit.status === "pending").length,
-    approved: state.edits.filter((edit) => edit.status === "approved").length,
-    edited: state.edits.filter((edit) => edit.status === "edited").length,
-    rejected: state.edits.filter((edit) => edit.status === "rejected").length,
-  };
-  const pendingUndo = undoLabel(session);
-  const decisions = state.activity.filter((entry) => entry.kind === "decision");
-
-  return (
-    <div className="space-y-3">
-      <div className="flex flex-wrap items-center gap-1.5">
-        <DecisionChip status="pending" />
-        <span className="text-[11px] font-semibold text-ink-900">{counts.pending}</span>
-        <DecisionChip status="approved" />
-        <span className="text-[11px] font-semibold text-ink-900">{counts.approved}</span>
-        <DecisionChip status="edited" />
-        <span className="text-[11px] font-semibold text-ink-900">{counts.edited}</span>
-        <DecisionChip status="rejected" />
-        <span className="text-[11px] font-semibold text-ink-900">{counts.rejected}</span>
-
-        <Button
-          size="sm"
-          variant="ghost"
-          className="ml-auto"
-          disabled={!canUndo(session)}
-          title={pendingUndo === null ? "Nothing to undo" : `Undo: ${pendingUndo}`}
-          onClick={store.undo}
-        >
-          ↶ Undo
-        </Button>
-      </div>
-
-      {state.edits.length === 0 ? (
-        <EmptyState>
-          Nothing to decide yet. Stage a redline package and each proposal will appear here with its
-          own approve, edit, reject and note controls.
-        </EmptyState>
-      ) : (
-        <ul className="space-y-1.5">
-          {state.edits.map((edit) => {
-            const clause = findClause(state, edit.clauseId);
-            return (
-              <li key={edit.editId} className="rounded-md border border-ink-200 px-2.5 py-2">
-                <div className="flex flex-wrap items-center gap-1.5">
-                  <DecisionChip status={edit.status} />
-                  <PriorityChip tag={edit.priorityTag} />
-                  <Mono>{edit.clauseId}</Mono>
-                </div>
-                <button
-                  type="button"
-                  disabled={clause === null}
-                  onClick={() => store.dispatch({ type: "focus-clause", clauseId: edit.clauseId })}
-                  className="mt-1 block text-left text-[11px] font-medium text-ink-900 hover:text-bridge-600 disabled:hover:text-ink-900"
-                >
-                  {clause === null
-                    ? `${edit.clauseId} (no longer in this revision)`
-                    : `${clause.ordinal}. ${clause.title}`}
-                </button>
-                {edit.note !== null && (
-                  <p className="mt-1 text-[10px] leading-snug text-edited-700">
-                    Note: {edit.note}
-                  </p>
-                )}
-                <div className="mt-1.5 flex flex-wrap gap-1.5">
-                  <Button
-                    size="sm"
-                    variant="approve"
-                    disabled={edit.status === "approved"}
-                    onClick={() => store.dispatch({ type: "approve-edit", editId: edit.editId })}
-                  >
-                    Approve
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="reject"
-                    disabled={edit.status === "rejected"}
-                    onClick={() => store.dispatch({ type: "reject-edit", editId: edit.editId })}
-                  >
-                    Reject
-                  </Button>
-                  {edit.status !== "pending" && (
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      title="Return this redline to awaiting decision"
-                      onClick={() => store.dispatch({ type: "reset-edit", editId: edit.editId })}
-                    >
-                      Reset
-                    </Button>
-                  )}
-                </div>
-                <p className="mt-1 text-[10px] text-ink-400">
-                  Rewrite the wording or add a note from the full card in the Redlines tab or beside
-                  the clause.
-                </p>
-              </li>
-            );
-          })}
-        </ul>
-      )}
-
-      <div>
-        <h3 className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-ink-400">
-          Decisions taken
-        </h3>
-        {decisions.length === 0 ? (
-          <EmptyState>No decision has been recorded yet.</EmptyState>
-        ) : (
-          <ol className="space-y-1">
-            {[...decisions].reverse().map((entry) => (
-              <li
-                key={entry.seq}
-                className="rounded border border-ink-100 bg-ink-50 px-2 py-1 text-[10px] leading-snug text-ink-700"
-              >
-                <span className="font-mono text-ink-400">#{entry.seq}</span> {entry.summary}
-              </li>
-            ))}
-          </ol>
-        )}
-      </div>
-    </div>
-  );
-}
-
-/**
- * Whole-document view of what has actually been agreed, against the wording the
- * agreement started from. Separate from Redlines, which is per-proposal.
- */
-function ChangesTab() {
-  const store = useStore();
-  const session = useSession();
-  const state = session.present;
-
-  const comparison = useMemo(
-    () => compareRevisions(state, buildSeedRevision(), (id) => effectiveClauseText(state, id)),
-    [state],
-  );
-  const changed = comparison.clauses.filter((item) => item.kind !== "unchanged");
-
-  return (
-    <div className="space-y-3">
-      <div className="rounded-md border border-ink-200 bg-ink-50 px-3 py-2.5 text-[11px] leading-relaxed text-ink-700">
-        <strong className="font-semibold">Against the original agreement.</strong> Approved changes
-        only — pending and rejected proposals are not counted here. Baseline{" "}
-        <Mono>{comparison.baselineRevisionId}</Mono>, now{" "}
-        <Mono>{comparison.currentRevisionId}</Mono>.
-      </div>
-
-      <div className="flex flex-wrap items-center gap-1.5">
-        <Chip tone={comparison.amendedCount > 0 ? "edited" : "neutral"}>
-          {comparison.amendedCount} amended
-        </Chip>
-        {comparison.addedCount > 0 && <Chip tone="approved">{comparison.addedCount} added</Chip>}
-        {comparison.removedCount > 0 && (
-          <Chip tone="rejected">{comparison.removedCount} removed</Chip>
-        )}
-        {comparison.amendedCount > 0 && (
-          <span className="text-[10px] text-ink-500">
-            +{comparison.totalWordsAdded} / −{comparison.totalWordsRemoved} words
-          </span>
-        )}
-      </div>
-
-      {changed.length === 0 ? (
-        <EmptyState>
-          The agreement is still word-for-word the original. Approve a redline and the change will
-          appear here.
-        </EmptyState>
-      ) : (
-        changed.map((item) => (
-          <div key={item.clauseId} className="rounded-md border border-ink-200 p-3">
-            <div className="flex flex-wrap items-center gap-1.5">
-              <Chip
-                tone={
-                  item.kind === "amended"
-                    ? "edited"
-                    : item.kind === "added"
-                      ? "approved"
-                      : "rejected"
-                }
-              >
-                {item.kind}
-              </Chip>
-              <Mono>{item.clauseId}</Mono>
-            </div>
-            <button
-              type="button"
-              onClick={() => store.dispatch({ type: "focus-clause", clauseId: item.clauseId })}
-              className="mt-1 block text-left text-[11px] font-medium text-ink-900 hover:text-bridge-600"
-            >
-              {item.ordinal}. {item.title}
-            </button>
-
-            {item.kind === "amended" ? (
-              <div className="mt-2 rounded border border-ink-100 bg-ink-50 p-2 text-[11px] leading-relaxed">
-                <InlineDiff before={item.baselineText} after={item.currentText} />
-              </div>
-            ) : (
-              <p className="mt-2 max-h-32 overflow-y-auto whitespace-pre-wrap rounded border border-ink-100 bg-ink-50 p-2 text-[11px] leading-relaxed text-ink-700">
-                {item.kind === "added" ? item.currentText : item.baselineText}
-              </p>
-            )}
-          </div>
-        ))
-      )}
-    </div>
-  );
-}
-
-/** Deterministic export previews and real local downloads, in the review rail. */
-function ExportTab() {
-  const store = useStore();
-  const session = useSession();
-  const state = session.present;
-  const [kind, setKind] = useState<ExportKind>("brief");
-  const [saved, setSaved] = useState<string | null>(null);
-
-  const filename = exportFilename(state, kind);
-  const markdown = useMemo(() => renderExport(state, kind), [state, kind]);
-
-  return (
-    <div className="space-y-2">
-      <div className="flex flex-wrap items-center gap-1.5">
-        {(["brief", "redline"] as const).map((item) => (
-          <button
-            key={item}
-            type="button"
-            aria-pressed={kind === item}
-            onClick={() => {
-              setKind(item);
-              setSaved(null);
-            }}
-            className={cx(
-              "rounded-md border px-2 py-1 text-[11px] font-medium transition-colors",
-              kind === item
-                ? "border-bridge-600 bg-bridge-50 text-bridge-700"
-                : "border-ink-200 bg-white text-ink-500 hover:border-ink-400",
-            )}
-          >
-            {item === "brief" ? "Negotiation brief" : "Redlined Markdown"}
-          </button>
-        ))}
-        <Button
-          size="sm"
-          variant="primary"
-          className="ml-auto"
-          title={`Save ${filename}`}
-          onClick={() => setSaved(store.downloadExport(kind))}
-        >
-          Download .md
-        </Button>
-      </div>
-
-      <p role="status" className="text-[10px] leading-snug text-ink-500">
-        {saved === null ? (
-          <>
-            Rendered from the current state by a pure function — no clock, no network. Reflects only
-            what you have approved; rejected and undecided proposals stay out of the agreement.
-            Saves as <span className="font-mono text-ink-700">{filename}</span>.
-          </>
-        ) : (
-          <>
-            Saved <span className="font-mono text-ink-700">{saved}</span> to your browser&apos;s
-            downloads.
-          </>
-        )}
-      </p>
-
-      <pre className="max-h-[28rem] overflow-auto whitespace-pre-wrap break-words rounded-md border border-ink-200 bg-ink-50 p-2.5 font-mono text-[10px] leading-relaxed text-ink-900">
-        {markdown}
-      </pre>
-    </div>
-  );
-}
-
-function ActivityTab() {
-  const session = useSession();
-  const entries = [...session.present.activity].reverse();
-
-  if (entries.length === 0) {
-    return <EmptyState>No tool calls or decisions recorded yet.</EmptyState>;
-  }
-
-  const sourceTone: Record<string, "brand" | "warning" | "neutral"> = {
-    "native-webmcp": "brand",
-    "local-handler-test": "warning",
-    ui: "neutral",
-  };
-
-  return (
-    <ol className="space-y-1.5">
-      {entries.map((entry) => (
-        <li key={entry.seq} className="rounded-md border border-ink-200 px-2.5 py-2">
-          <div className="flex flex-wrap items-center gap-1.5">
-            <span className="font-mono text-[10px] text-ink-400">#{entry.seq}</span>
-            <Chip tone={sourceTone[entry.source] ?? "neutral"}>
-              {INVOCATION_SOURCE_LABELS[entry.source]}
-            </Chip>
-            {entry.tool !== null && <Mono>{entry.tool}</Mono>}
-            {entry.kind === "tool-error" && <Chip tone="rejected">rejected</Chip>}
-          </div>
-          <p className="mt-1 text-[11px] leading-snug text-ink-900">{entry.summary}</p>
-          {entry.detail !== null && (
-            <p className="mt-0.5 break-words font-mono text-[10px] leading-snug text-ink-500">
-              {entry.detail}
-            </p>
-          )}
-          <p className="mt-1 font-mono text-[9px] text-ink-400">{entry.at}</p>
-        </li>
-      ))}
-    </ol>
   );
 }
