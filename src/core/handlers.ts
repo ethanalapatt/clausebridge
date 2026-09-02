@@ -10,6 +10,7 @@ import {
   isSelected,
   isStaleClauseId,
   withActivity,
+  withToolCall,
 } from "@/core/state";
 import type {
   AppState,
@@ -22,6 +23,7 @@ import type {
   PriorityTag,
   RedlinePackage,
   StagedEdit,
+  ToolName,
 } from "@/core/types";
 import { PARTY_ROLES, PRIORITY_TAGS } from "@/core/types";
 
@@ -169,29 +171,53 @@ export function getNegotiationContext(
   const requested = Array.isArray(input?.clauseIds) ? input.clauseIds : [];
 
   if (requested.length === 0 || !requested.every(isNonEmptyString)) {
-    return reject(state, context, "get_negotiation_context", {
-      code: "INVALID_INPUT",
-      message: "clauseIds must be a non-empty array of clause ID strings.",
-    });
+    return reject(
+      state,
+      context,
+      "get_negotiation_context",
+      {
+        code: "INVALID_INPUT",
+        message: "clauseIds must be a non-empty array of clause ID strings.",
+      },
+      input,
+    );
   }
 
   if (!PARTY_ROLES.includes(input.partyRole)) {
-    return reject(state, context, "get_negotiation_context", {
-      code: "INVALID_INPUT",
-      message: `partyRole must be one of: ${PARTY_ROLES.join(", ")}.`,
-    });
+    return reject(
+      state,
+      context,
+      "get_negotiation_context",
+      {
+        code: "INVALID_INPUT",
+        message: `partyRole must be one of: ${PARTY_ROLES.join(", ")}.`,
+      },
+      input,
+    );
   }
 
   if (!Array.isArray(input.priorityAreas)) {
-    return reject(state, context, "get_negotiation_context", {
-      code: "INVALID_INPUT",
-      message: "priorityAreas must be an array of strings.",
-    });
+    return reject(
+      state,
+      context,
+      "get_negotiation_context",
+      {
+        code: "INVALID_INPUT",
+        message: "priorityAreas must be an array of strings.",
+      },
+      input,
+    );
   }
 
   const validation = validateClauseIds(state, requested);
   if (validation.unknown.length > 0 || validation.stale.length > 0) {
-    return reject(state, context, "get_negotiation_context", clauseIdError(state, validation));
+    return reject(
+      state,
+      context,
+      "get_negotiation_context",
+      clauseIdError(state, validation),
+      input,
+    );
   }
 
   // De-duplicate while preserving the caller's order.
@@ -266,7 +292,9 @@ export function getNegotiationContext(
   // Focusing the first requested clause is what makes the tool call visible in
   // the shared document rather than happening invisibly.
   const focusedClauseId = clauseIds[0] ?? null;
-  const nextState = withActivity(
+  const result: HandlerResult<NegotiationContextPayload> = { ok: true, ...payload };
+
+  const logged = withActivity(
     {
       ...state,
       focusedClauseId,
@@ -279,10 +307,33 @@ export function getNegotiationContext(
       tool: "get_negotiation_context",
       summary: `Retrieved context for ${clauses.length} clause(s) as ${input.partyRole}`,
       detail: `${clauseIds.join(", ")} · ${fallbackOptions.length} fictional fallback option(s) · revision ${state.revision.revisionId}`,
+      clauseIds,
     },
   );
 
-  return { result: { ok: true, ...payload }, state: nextState };
+  const nextState = withToolCall(logged, {
+    at: context.at,
+    tool: "get_negotiation_context",
+    source: context.source,
+    revisionId: state.revision.revisionId,
+    input: serialize(input),
+    inputSummary: describeInput("get_negotiation_context", input),
+    clauseIds,
+    outcome: "ok",
+    validation: `Accepted — ${clauseIds.length} clause ID(s) resolved in ${state.revision.revisionId}; none unknown or stale.`,
+    resultSummary:
+      `${clauses.length} clause(s) with exact source text and current wording, ` +
+      `${fallbackOptions.length} fictional fallback option(s) filtered to the ${input.partyRole} posture.`,
+    stateEffect:
+      focusedClauseId === null
+        ? "Read-only. Nothing in the agreement changed."
+        : `Read-only. Focused ${focusedClauseId} in the document; no clause text, package or decision changed.`,
+    errorCode: null,
+    errorDetail: null,
+    output: serialize(result),
+  });
+
+  return { result, state: nextState };
 }
 
 // ------------------------------------------------- stage_redline_package
@@ -329,18 +380,24 @@ export function stageRedlinePackage(
   context: HandlerContext,
 ): HandlerOutcome<StageRedlinePayload> {
   if (!isNonEmptyString(input?.packageLabel)) {
-    return reject(state, context, "stage_redline_package", {
-      code: "INVALID_INPUT",
-      message: "packageLabel must be a non-empty string.",
-    });
+    return reject(
+      state,
+      context,
+      "stage_redline_package",
+      { code: "INVALID_INPUT", message: "packageLabel must be a non-empty string." },
+      input,
+    );
   }
 
   const edits = Array.isArray(input.edits) ? input.edits : [];
   if (edits.length === 0) {
-    return reject(state, context, "stage_redline_package", {
-      code: "EMPTY_PACKAGE",
-      message: "edits must contain at least one redline.",
-    });
+    return reject(
+      state,
+      context,
+      "stage_redline_package",
+      { code: "EMPTY_PACKAGE", message: "edits must contain at least one redline." },
+      input,
+    );
   }
 
   // Duplicates first: two edits to one clause in a single package have no
@@ -353,11 +410,17 @@ export function stageRedlinePackage(
     seen.add(clauseId);
   }
   if (duplicates.size > 0) {
-    return reject(state, context, "stage_redline_package", {
-      code: "DUPLICATE_CLAUSE_IDS",
-      message: `A package may contain at most one edit per clause. Duplicated: ${[...duplicates].join(", ")}.`,
-      duplicateClauseIds: [...duplicates],
-    });
+    return reject(
+      state,
+      context,
+      "stage_redline_package",
+      {
+        code: "DUPLICATE_CLAUSE_IDS",
+        message: `A package may contain at most one edit per clause. Duplicated: ${[...duplicates].join(", ")}.`,
+        duplicateClauseIds: [...duplicates],
+      },
+      input,
+    );
   }
 
   const validation = validateClauseIds(
@@ -365,7 +428,13 @@ export function stageRedlinePackage(
     edits.map((edit) => (typeof edit?.clauseId === "string" ? edit.clauseId : "")),
   );
   if (validation.unknown.length > 0 || validation.stale.length > 0) {
-    return reject(state, context, "stage_redline_package", clauseIdError(state, validation));
+    return reject(
+      state,
+      context,
+      "stage_redline_package",
+      clauseIdError(state, validation),
+      input,
+    );
   }
 
   const invalidEdits: { index: number; clauseId: string | null; reason: string }[] = [];
@@ -399,11 +468,17 @@ export function stageRedlinePackage(
   });
 
   if (invalidEdits.length > 0) {
-    return reject(state, context, "stage_redline_package", {
-      code: "INVALID_EDITS",
-      message: `Rejected ${invalidEdits.length} malformed edit(s); nothing was staged.`,
-      invalidEdits,
-    });
+    return reject(
+      state,
+      context,
+      "stage_redline_package",
+      {
+        code: "INVALID_EDITS",
+        message: `Rejected ${invalidEdits.length} malformed edit(s); nothing was staged.`,
+        invalidEdits,
+      },
+      input,
+    );
   }
 
   const seq = state.seq + 1;
@@ -446,7 +521,21 @@ export function stageRedlinePackage(
   });
 
   const focusedClauseId = stagedEdits[0]?.clauseId ?? null;
-  const nextState = withActivity(
+  const stagedClauseIds = stagedEdits.map((edit) => edit.clauseId);
+  const lockedClauseIds = stagedClauseIds.filter((clauseId) => isNonNegotiable(state, clauseId));
+
+  const result: HandlerResult<StageRedlinePayload> = {
+    ok: true,
+    packageId: pkgId,
+    packageLabel: input.packageLabel,
+    revisionId: state.revision.revisionId,
+    staged,
+    notice:
+      "Staged for review only. The source agreement is unchanged and each redline requires a separate human decision. " +
+      NON_LEGAL_ADVICE_NOTICE,
+  };
+
+  const logged = withActivity(
     {
       ...state,
       packages: [...state.packages, pkg],
@@ -463,40 +552,127 @@ export function stageRedlinePackage(
       detail: staged
         .map((item) => `${item.clauseId} [${item.priorityTag}] +${item.wordsAdded}/-${item.wordsRemoved}`)
         .join(" · "),
+      clauseIds: stagedClauseIds,
+      packageIds: [pkgId],
     },
   );
 
-  return {
-    result: {
-      ok: true,
-      packageId: pkgId,
-      packageLabel: input.packageLabel,
-      revisionId: state.revision.revisionId,
-      staged,
-      notice:
-        "Staged for review only. The source agreement is unchanged and each redline requires a separate human decision. " +
-        NON_LEGAL_ADVICE_NOTICE,
-    },
-    state: nextState,
-  };
+  const nextState = withToolCall(logged, {
+    at: context.at,
+    tool: "stage_redline_package",
+    source: context.source,
+    revisionId: state.revision.revisionId,
+    input: serialize(input),
+    inputSummary: describeInput("stage_redline_package", input),
+    clauseIds: stagedClauseIds,
+    outcome: "ok",
+    validation:
+      `Accepted — ${stagedEdits.length} edit(s), one per clause, all resolving in ` +
+      `${state.revision.revisionId}; none identical to the clause's current text.`,
+    resultSummary: staged
+      .map(
+        (item) =>
+          `${item.clauseId} [${item.priorityTag}] +${item.wordsAdded}/-${item.wordsRemoved} words`,
+      )
+      .join(" · "),
+    stateEffect:
+      `Staged ${stagedEdits.length} proposal(s) as ${pkgId}, every one awaiting a separate human ` +
+      `decision. The source agreement is unchanged and nothing was approved.` +
+      (lockedClauseIds.length === 0
+        ? ""
+        : ` ${lockedClauseIds.length} of them touch a clause you marked non-negotiable: ${lockedClauseIds.join(", ")}.`),
+    errorCode: null,
+    errorDetail: null,
+    output: serialize(result),
+  });
+
+  return { result, state: nextState };
 }
 
 // ------------------------------------------------------------------ shared
+
+/**
+ * Serializes exactly what crossed the boundary.
+ *
+ * Input arrives from an external agent and may hold anything, including cycles,
+ * so a failure here is reported rather than thrown — a call must never be lost
+ * from the record because its arguments could not be printed.
+ */
+function serialize(value: unknown): string {
+  try {
+    return JSON.stringify(value, null, 2) ?? String(value);
+  } catch {
+    return "(input could not be serialized)";
+  }
+}
+
+/** Best-effort clause IDs for the record, usable even when validation failed. */
+function requestedClauseIds(input: unknown): string[] {
+  const record = input as { clauseIds?: unknown; edits?: unknown } | null | undefined;
+  if (Array.isArray(record?.clauseIds)) {
+    return record.clauseIds.filter((id): id is string => typeof id === "string");
+  }
+  if (Array.isArray(record?.edits)) {
+    return record.edits
+      .map((edit) => (edit as { clauseId?: unknown } | null)?.clauseId)
+      .filter((id): id is string => typeof id === "string");
+  }
+  return [];
+}
 
 /** Records the rejection in the audit trail without changing the document. */
 function reject<T>(
   state: AppState,
   context: HandlerContext,
-  tool: "get_negotiation_context" | "stage_redline_package",
+  tool: ToolName,
   error: HandlerError,
+  input?: unknown,
 ): HandlerOutcome<T> {
-  const nextState = withActivity(state, context.at, {
+  const result: HandlerResult<T> = { ok: false, error };
+
+  const logged = withActivity(state, context.at, {
     source: context.source,
     kind: "tool-error",
     tool,
     summary: `${tool} rejected: ${error.code}`,
     detail: error.message,
+    clauseIds: requestedClauseIds(input),
   });
 
-  return { result: { ok: false, error }, state: nextState };
+  const nextState = withToolCall(logged, {
+    at: context.at,
+    tool,
+    source: context.source,
+    revisionId: state.revision.revisionId,
+    input: serialize(input),
+    inputSummary: describeInput(tool, input),
+    clauseIds: requestedClauseIds(input),
+    outcome: "rejected",
+    validation: `Rejected — ${error.code}.`,
+    resultSummary: "No result. The call returned an error envelope.",
+    stateEffect: "Nothing changed. The agreement, the staged packages and every decision are untouched.",
+    errorCode: error.code,
+    errorDetail: error.message,
+    output: serialize(result),
+  });
+
+  return { result, state: nextState };
+}
+
+/** One line describing what a caller asked for, readable without the JSON. */
+function describeInput(tool: ToolName, input: unknown): string {
+  const record = input as
+    | { clauseIds?: unknown; partyRole?: unknown; packageLabel?: unknown; edits?: unknown }
+    | null
+    | undefined;
+
+  if (tool === "get_negotiation_context") {
+    const count = Array.isArray(record?.clauseIds) ? record.clauseIds.length : 0;
+    const role = typeof record?.partyRole === "string" ? record.partyRole : "unspecified role";
+    return `${count} clause ID(s), as ${role}`;
+  }
+
+  const label = typeof record?.packageLabel === "string" ? record.packageLabel : "(no label)";
+  const count = Array.isArray(record?.edits) ? record.edits.length : 0;
+  return `“${label}” — ${count} proposed edit(s)`;
 }

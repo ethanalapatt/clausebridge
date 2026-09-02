@@ -16,10 +16,17 @@ import type { AppState } from "@/core/types";
  * this session; the decisions themselves and the audit log carry the meaning.
  */
 
-export const PERSISTENCE_KEY = "clausebridge:session:v1";
+export const PERSISTENCE_KEY = "clausebridge:session:v2";
 
-/** Bumped whenever the shape of `AppState` changes incompatibly. */
-export const PERSISTENCE_VERSION = 1;
+/**
+ * Bumped whenever the shape of `AppState` changes incompatibly.
+ *
+ * Version 2 added the objective board (`constraints`, `objectiveNote`), tool-call
+ * provenance records, and preview-revision checkpoints. A version-1 payload has
+ * none of them, so it is rejected and the demo starts from the seed rather than
+ * hydrating a state the selectors would index into and find missing.
+ */
+export const PERSISTENCE_VERSION = 2;
 
 export interface PersistedEnvelope {
   version: number;
@@ -64,13 +71,21 @@ function looksLikeAppState(value: unknown): value is AppState {
   if (typeof value.partyRole !== "string") return false;
   if (typeof value.seq !== "number" || !Number.isFinite(value.seq)) return false;
 
+  if (typeof value.objectiveNote !== "string") return false;
+  if (typeof value.constraintSeq !== "number" || !Number.isFinite(value.constraintSeq)) {
+    return false;
+  }
+
   for (const key of [
     "selectedClauseIds",
     "nonNegotiableClauseIds",
     "priorityAreas",
+    "constraints",
     "packages",
     "edits",
     "activity",
+    "toolCalls",
+    "checkpoints",
   ]) {
     if (!Array.isArray(value[key])) return false;
   }

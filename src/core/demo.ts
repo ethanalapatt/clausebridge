@@ -1,5 +1,6 @@
 import { FALLBACK_LIBRARY } from "@/core/seed/fallbackLibrary";
 import { effectiveClauseText } from "@/core/state";
+import type { ConstraintDraft } from "@/core/constraints";
 import type {
   AppState,
   ClauseType,
@@ -112,6 +113,25 @@ function roleLabel(role: PartyRole): string {
 /** Clause the golden path marks non-negotiable. */
 export const GOLDEN_PATH_NON_NEGOTIABLE: readonly ClauseType[] = ["liability"];
 
+/**
+ * The constraints the guided demo puts on the board.
+ *
+ * Two Musts drive the walkthrough; the Prefer and the Avoid are there because a
+ * board that only ever reports success would be a worse demonstration than one
+ * that honestly shows a stated objective no staged alternative meets.
+ */
+export const GOLDEN_PATH_CONSTRAINTS: readonly ConstraintDraft[] = [
+  { ruleId: "data_deletion_within_days", severity: "must", value: 30, note: "Exit has to be clean and time-bound." },
+  { ruleId: "termination_notice_min_days", severity: "must", value: 30, note: "We need warning before service stops." },
+  { ruleId: "non_renewal_notice_max_days", severity: "prefer", value: 30, note: null },
+  { ruleId: "no_automatic_renewal", severity: "avoid", value: null, note: null },
+  { ruleId: "manual_review_only", severity: "must", value: null, note: "Counsel reads liability, not a rule." },
+];
+
+export const GOLDEN_PATH_OBJECTIVE_NOTE =
+  "Reviewing as the customer. Liability is off the table for automated handling — it goes to a person. " +
+  "Termination and data retention are where we want movement.";
+
 export const GOLDEN_PATH_SETUP_LABEL =
   "Applied the demo setup: Customer, Liability locked, Termination and Data retention prioritised";
 
@@ -129,6 +149,8 @@ export function goldenPathSetup(state: AppState): DemoSetup {
     selectedClauseIds: clauseIdsOfTypes(state, GOLDEN_PATH_CLAUSE_TYPES),
     nonNegotiableClauseIds: clauseIdsOfTypes(state, GOLDEN_PATH_NON_NEGOTIABLE),
     priorityAreas: [...GOLDEN_PATH_PRIORITIES],
+    constraints: GOLDEN_PATH_CONSTRAINTS.map((draft) => ({ ...draft })),
+    objectiveNote: GOLDEN_PATH_OBJECTIVE_NOTE,
   };
 }
 

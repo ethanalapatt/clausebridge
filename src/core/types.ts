@@ -6,6 +6,8 @@
  * correct or preferable.
  */
 
+import type { Constraint, ConstraintDraft } from "@/core/constraints";
+
 export type PartyRole = "customer" | "vendor" | "neutral";
 
 export const PARTY_ROLES: readonly PartyRole[] = ["customer", "vendor", "neutral"];
@@ -133,6 +135,9 @@ export interface DemoSetup {
   selectedClauseIds: readonly string[];
   nonNegotiableClauseIds: readonly string[];
   priorityAreas: readonly string[];
+  /** Constraints to place on the board. IDs are assigned by the reducer. */
+  constraints: readonly ConstraintDraft[];
+  objectiveNote: string;
 }
 
 /** Which deterministic Markdown document an export produced. */
@@ -203,6 +208,8 @@ export type ActivityKind =
 export type ToolName = "get_negotiation_context" | "stage_redline_package";
 
 export interface ActivityEntry {
+  /** Stable local ID, e.g. `ev-0007`. Survives serialization; never reused. */
+  id: string;
   /** Deterministic ordering counter, assigned by the reducer. */
   seq: number;
   /** ISO timestamp supplied by the caller so the core stays pure. */
@@ -212,6 +219,80 @@ export interface ActivityEntry {
   tool: ToolName | null;
   summary: string;
   detail: string | null;
+  /** Clauses this event affected, so the timeline can focus them. */
+  clauseIds: readonly string[];
+  /** Packages this event affected. */
+  packageIds: readonly string[];
+  /** Deterministic summary of the prior value, where one exists. */
+  before: string | null;
+  /** Deterministic summary of the new value, where one exists. */
+  after: string | null;
+  /** Document revision observed when the event was recorded. */
+  revisionId: string;
+}
+
+/**
+ * The full provenance of one handler invocation.
+ *
+ * The activity entry says what happened in a sentence; this says exactly what
+ * crossed the boundary. Input and output are stored pre-serialized so the
+ * inspector shows what the handler actually received, not a re-rendering of it.
+ */
+export interface ToolCallRecord {
+  /** Stable local ID, e.g. `call-0003`. */
+  id: string;
+  /** Sequence of the activity entry recording the outcome. */
+  seq: number;
+  at: string;
+  tool: ToolName;
+  source: InvocationSource;
+  /** Active document revision at call time. */
+  revisionId: string;
+  /** Serialized input exactly as the handler received it. */
+  input: string;
+  /** One-line human-readable rendering of the input. */
+  inputSummary: string;
+  /** Clause IDs the call named or touched. */
+  clauseIds: readonly string[];
+  outcome: "ok" | "rejected";
+  /** What validation concluded, in one line. */
+  validation: string;
+  /** Structured result, in one line. */
+  resultSummary: string;
+  /** What the call changed in the workspace. */
+  stateEffect: string;
+  errorCode: HandlerErrorCode | null;
+  errorDetail: string | null;
+  /** Serialized result envelope. */
+  output: string;
+}
+
+/** One redline's decision, captured inside a checkpoint. */
+export interface CheckpointDecision {
+  editId: string;
+  status: DecisionStatus;
+  humanText: string | null;
+}
+
+/**
+ * A preview revision: the state of the agreement after a human decision changed
+ * what it reads as.
+ *
+ * Checkpoints record both the resulting text *and* the decisions that produced
+ * it, so restoring one is an exact replay of those decisions rather than an
+ * overwrite of clause text. The source agreement is never stored here because it
+ * never changes.
+ */
+export interface Checkpoint {
+  /** Stable local ID, e.g. `rev-0002`. */
+  id: string;
+  seq: number;
+  at: string;
+  label: string;
+  revisionId: string;
+  /** Effective clause text at this point, keyed by clause ID. */
+  clauseTexts: Readonly<Record<string, string>>;
+  decisions: readonly CheckpointDecision[];
 }
 
 /**
@@ -234,9 +315,19 @@ export interface AppState {
   focusedClauseId: string | null;
   /** Monotonic counter used to retrigger the focus animation on repeat calls. */
   focusPulse: number;
+  /** Structured Must / Prefer / Avoid conditions the human stated. */
+  constraints: readonly Constraint[];
+  /** Monotonic counter for constraint IDs. Never reused, even after removal. */
+  constraintSeq: number;
+  /** Free-text explanation of what the human is trying to achieve. */
+  objectiveNote: string;
   packages: readonly RedlinePackage[];
   edits: readonly StagedEdit[];
   activity: readonly ActivityEntry[];
+  /** Full provenance for every handler invocation, newest last. */
+  toolCalls: readonly ToolCallRecord[];
+  /** Preview revisions produced by human decisions, oldest first. */
+  checkpoints: readonly Checkpoint[];
   seq: number;
   webmcpStatus: WebMcpStatus;
 }

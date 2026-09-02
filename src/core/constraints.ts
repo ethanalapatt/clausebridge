@@ -54,6 +54,9 @@ export interface Constraint {
   note: string | null;
 }
 
+/** A constraint before the reducer assigns it a stable ID. */
+export type ConstraintDraft = Omit<Constraint, "id">;
+
 export interface ConstraintResult {
   constraintId: string;
   ruleId: ConstraintRuleId;

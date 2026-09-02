@@ -35,3 +35,19 @@ export function revisionIdFromClauseId(id: string): string | null {
   const match = /^(.+-r\d+)-\d{2,}$/.exec(id);
   return match?.[1] ?? null;
 }
+
+export function eventId(seq: number): string {
+  return `ev-${String(seq).padStart(4, "0")}`;
+}
+
+export function toolCallId(seq: number): string {
+  return `call-${String(seq).padStart(4, "0")}`;
+}
+
+export function checkpointId(seq: number): string {
+  return `rev-${String(seq).padStart(4, "0")}`;
+}
+
+export function constraintId(seq: number): string {
+  return `con-${String(seq).padStart(4, "0")}`;
+}

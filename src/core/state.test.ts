@@ -13,6 +13,7 @@ import {
   createSession,
   effectiveClauseText,
   findClause,
+  findEdit,
   governingEdit,
   isEditStale,
   reduce,
@@ -174,9 +175,10 @@ describe("decision transitions", () => {
     expect(state.edits[2]?.status).toBe("rejected");
   });
 
-  it("lets a later approved package supersede an earlier one for the same clause", () => {
+  it("keeps exactly one approved proposal per clause, leaving rivals staged", () => {
     const clauseId = staged.ids.liability!;
-    let state = reduce(staged.state, { type: "approve-edit", editId: staged.edits[2]! }, AT);
+    const first = staged.edits[2]!;
+    let state = reduce(staged.state, { type: "approve-edit", editId: first }, AT);
 
     const second = stageRedlinePackage(
       state,
@@ -194,12 +196,26 @@ describe("decision transitions", () => {
       CTX,
     );
     state = reduce(second.state, { type: "approve-edit", editId: "pkg-0002-e01" }, AT);
-    expect(effectiveClauseText(state, clauseId)).toBe("Later wording.");
 
-    // Rejecting the later edit falls back to the earlier approved one, not to
-    // some stored text that no live decision supports.
+    expect(effectiveClauseText(state, clauseId)).toBe("Later wording.");
+    // The displaced alternative is returned to awaiting decision — still staged
+    // and still comparable — never rejected on the human's behalf.
+    expect(findEdit(state, first)?.status).toBe("pending");
+    expect(
+      state.edits.filter(
+        (edit) =>
+          edit.clauseId === clauseId &&
+          (edit.status === "approved" || edit.status === "edited"),
+      ),
+    ).toHaveLength(1);
+    expect(state.activity.at(-1)?.detail).toContain(first);
+
+    // Rejecting the winner falls back to the source clause, not to wording no
+    // live decision supports.
     state = reduce(state, { type: "reject-edit", editId: "pkg-0002-e01" }, AT);
-    expect(effectiveClauseText(state, clauseId)).toBe(`${REPLACEMENT} Liability.`);
+    expect(effectiveClauseText(state, clauseId)).toBe(
+      staged.state.revision.clauses.find((clause) => clause.id === clauseId)?.text,
+    );
   });
 
   it("ignores decisions on unknown edit IDs", () => {
@@ -367,6 +383,8 @@ describe("apply-demo-setup", () => {
           selectedClauseIds: [liability, termination],
           nonNegotiableClauseIds: [liability],
           priorityAreas: ["termination", "  data retention  ", "   "],
+          constraints: [],
+          objectiveNote: "",
         },
       },
       AT,
@@ -394,6 +412,8 @@ describe("apply-demo-setup", () => {
           selectedClauseIds: [real, "NSA-r1-999", "not-a-clause"],
           nonNegotiableClauseIds: ["NSA-r1-999"],
           priorityAreas: [],
+          constraints: [],
+          objectiveNote: "",
         },
       },
       AT,
@@ -415,6 +435,8 @@ describe("apply-demo-setup", () => {
           selectedClauseIds: [],
           nonNegotiableClauseIds: [],
           priorityAreas: ["termination"],
+          constraints: [],
+          objectiveNote: "",
         },
       },
       AT,

@@ -49,7 +49,8 @@ persistence; redline migration across revisions; whole-document comparison; keyb
 
 | # | Milestone | Verification | Commit | Pushed |
 | --- | --- | --- | --- | --- |
-| A | Deterministic constraint engine (`src/core/constraints.ts`) | 32 new tests; full `npm run verify` exit 0 | _pending_ | _pending_ |
+| A | Deterministic constraint engine (`src/core/constraints.ts`) | 32 new tests; `npm run verify` exit 0 (236 tests) | `e2310c0` | `e2310c0` — remote SHA verified |
+| B | State architecture hardening: objective board, structured timeline events, tool-call provenance records, preview-revision checkpoints, one-approval-per-clause | 28 new tests in `objectives.test.ts`; `npm run verify` exit 0 (264 tests) | _pending_ | _pending_ |
 
 ---
 
