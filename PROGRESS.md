@@ -58,12 +58,12 @@ committed, and every pushed SHA was verified against `git ls-remote origin refs/
 | D | Replay and revision inspector, 13-step director, JSON export bundle | 25 new tests + rewritten integration test; verify exit 0 (316 tests) | `d4a7a13` | `d4a7a13` — verified |
 | E+F | Objective board, comparison surface, provenance panel, timeline/replay, export bundle UI | verify exit 0 (316 tests); loopback SSR HTTP 200, 61,176 bytes, no dev-server errors | `51d6217` | `51d6217` — verified |
 | G | 13-step demo director, presentation mode, live region, document relationship map | 12 new tests; verify exit 0 (328 tests) | `78e9966` | `78e9966` — verified |
-| H | Import review hardening, clause-navigation shortcuts, README, this record | verify exit 0 (328 tests) | _this commit_ | _this commit_ |
+| H | Import review hardening, clause-navigation shortcuts, README, this record | verify exit 0 (328 tests) | `2490da6` | `2490da6` — verified |
 
 ## Current state
 
 - Branch `main`, upstream `origin/main`, remote `https://github.com/ethanalapatt/clausebridge.git`.
-- Working tree clean apart from the two untracked brief files (`ClauseBridge_Product_Elevation_Claude_Brief.md`, `do this one.md`), deliberately left untracked.
+- Local `HEAD` matches the verified remote `origin/main`. Working tree clean apart from the two untracked brief files (`ClauseBridge_Product_Elevation_Claude_Brief.md`, `do this one.md`), deliberately left untracked.
 - `npm run verify` — **exit 0**: `tsc --noEmit` clean, `eslint .` no findings, **328 tests across 17 files**, production build compiled, `/` statically prerendered, 103 kB shared first-load JS.
 - Local preview: `npx next dev --hostname 127.0.0.1 --port 3100` → **http://127.0.0.1:3100**, verified listening on IPv4 loopback only via `lsof -nP -iTCP:3100 -sTCP:LISTEN`.
 
@@ -153,7 +153,7 @@ holds no business logic of its own and no second copy of a verdict.
 
 **Performed, authorized by `ClauseBridge_Product_Elevation_Claude_Brief.md` §2:**
 
-- Seven `git push origin main` fast-forwards to the existing approved remote, each after its
+- Eight `git push origin main` fast-forwards to the existing approved remote, each after its
   milestone passed `npm run verify`, each verified with `git ls-remote`.
 - Read-only `git remote -v`, `git status`, `git log`, `git ls-remote`.
 - No force push, no history rewriting, no branch/remote change, no PR, issue, release, Actions,
