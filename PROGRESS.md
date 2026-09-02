@@ -2,39 +2,58 @@
 
 ## Status
 
-- Current phase: **Complete Local MVP** (per `do this one.md`, the latest and highest-priority instruction)
-- Current milestone: post-MVP backlog work, on the user's instruction to keep building.
-- Overall state: the local MVP is complete and published. A follow-on pass cleared seven backlog items — persistence, redline migration, bulk decisions, focus trap, keyboard shortcuts, cross-revision comparison, and the license. `npm run verify` exits 0 with **204 tests**.
-- Last updated: after the backlog pass
+- Current phase: **Product elevation** (per `ClauseBridge_Product_Elevation_Claude_Brief.md`, the latest and highest-priority instruction).
+- Current milestone: see the milestone ledger below.
+- Overall state: the MVP described further down is complete, published, and preserved. This run elevates it into an agent-native negotiation workspace: objective board, deterministic constraints, multi-package comparison, revision timeline and replay, richer WebMCP provenance, and a full guided golden path.
+- Last updated: during the elevation run.
 
 ## Authority for this run
 
-`do this one.md` supersedes the older briefs for the current run. It upgrades the target from a rough
-sketch to a complete, polished, locally running MVP, and it **revokes all external access**: no
-GitHub, no push/pull/fetch, no Vercel, no APIs, no registries, no web browsing, no filesystem access
-outside this folder. The older instruction files are preserved unchanged, as required. The "GitHub
-state" section below is retained as a factual record of what happened in an earlier run; **no remote
-was contacted in this run and none will be.**
+`ClauseBridge_Product_Elevation_Claude_Brief.md` supersedes the older briefs. It raises the product
+target from a functional MVP to a polished, judge-ready local product, and it **re-authorizes
+GitHub milestone pushes** to the existing approved `origin` — overriding the older file that
+prohibited them. Every other external restriction stays in force: no deployment, no APIs, no package
+downloads, no web browsing, no filesystem access outside this folder.
 
-## Milestone 1 audit — factual baseline observed this run
+The two WebMCP tool contracts (`get_negotiation_context`, `stage_redline_package`) and their input
+schemas are frozen and unchanged. No third tool was added.
 
-- Git: branch `main`, HEAD `db49ba3`, working tree clean apart from the untracked brief `do this one.md`. No remote contacted.
-- Toolchain present locally: `next` 15.5.24, `react` 19, `typescript` 5.9, `vitest` 3.2, `eslint` 9 + `eslint-config-next`, `tailwindcss` 4. `node_modules` already installed. No install command was run and none will be.
-- Baseline `npm run verify` — **exit 0**: typecheck passed, lint passed with no findings, 132 tests passed across 8 files, production build compiled successfully.
-- Existing code inspected in full: 6,623 lines across `src/core`, `src/webmcp`, `src/app`, `src/components`. The deterministic core (types, segmentation, diff, handlers, state, exports) and the WebMCP registration are complete and well tested; they are preserved, not rebuilt.
+## Elevation audit — factual baseline observed at the start of this run
 
-### Gap list — what the local MVP still requires
+- Git: branch `main`, HEAD `a3a35ee`, upstream `origin/main`, remote `https://github.com/ethanalapatt/clausebridge.git` — matches the repository already approved by the user. Working tree clean apart from two untracked briefs.
+- Baseline `npm run verify` — **exit 0**: `tsc --noEmit` passed, `eslint .` passed with no findings, **204 tests across 12 files** passed, production build compiled.
+- Existing code read in full: 9,666 lines across `src/core`, `src/webmcp`, `src/app`, `src/components`.
 
-| # | Brief ref | Gap found in the existing sketch |
+### What already worked and was preserved, not rebuilt
+
+Document/revision model with revision-namespaced clause IDs and stale-vs-unknown rejection;
+conservative segmentation; lossless word-level LCS diff; both deterministic handlers with strict
+atomic validation; the approve/reject/edit/note/reset/undo state machine with derived effective
+text; deterministic Markdown exports; WebMCP registration with no shim; the external store; session
+persistence; redline migration across revisions; whole-document comparison; keyboard shortcuts.
+
+### Gap list against the elevation brief
+
+| # | Brief ref | Gap in the MVP |
 | --- | --- | --- |
-| 1 | §7 export engine, §15 | No real browser download. Export dialog could only copy Markdown. |
-| 2 | §5, §9, §10 | No reset control. `load-seed` deliberately kept prior activity/seq, so it did not restore the exact initial state, and it never cleared the undo stack. |
-| 3 | §5 demo guidance | No way to seed the golden-path configuration in one click. |
-| 4 | §5 demo guidance | No in-product checklist or guided demo strip. |
-| 5 | §5 app shell | Narrow screens were not usable: both rails were hidden and replaced with a "use a wider screen" message. |
-| 6 | §5 right panel | Right panel had no decision log distinct from the raw activity timeline. |
-| 7 | §5 right panel | Right panel had no approve / reject / edit / note / undo controls; they existed only in the centre pane. |
-| 8 | §5 right panel | Right panel had no negotiation-brief or redlined-Markdown preview/export entry point. |
+| 1 | 6.1 | No objective board. Role, priorities, selection and non-negotiables were scattered controls, and there were no structured Must/Prefer/Avoid constraints or human intent notes. |
+| 2 | 6.2 | Only one seeded package (`Customer Baseline`). No contrasting alternatives, no comparison surface, no per-clause choice between competing proposals, no package summary counts, no fallback provenance on a staged edit. |
+| 3 | 6.3 | No constraint evaluator at all. |
+| 4 | 6.4 | No way to restore a prior approved state; no checkpoints. |
+| 5 | 6.5 | The activity log was a flat list of prose summaries: no stable event ID, no affected clause/package IDs, no before/after, no click-to-focus, no revision inspector, no replay. |
+| 6 | 6.6 | The guided demo had six coarse steps, not the brief's thirteen, and no presentation mode. |
+| 7 | 6.7 | Tool calls were logged as a summary string. No structured record of input, validation result, result summary, state effect, or failure detail; no developer inspector. |
+| 8 | 7.1 / 7.3 | No relationship map. Exports covered Markdown only — no decision-log or tool-activity JSON. |
+
+## Milestone ledger — elevation run
+
+| # | Milestone | Verification | Commit | Pushed |
+| --- | --- | --- | --- | --- |
+| A | Deterministic constraint engine (`src/core/constraints.ts`) | 32 new tests; full `npm run verify` exit 0 | _pending_ | _pending_ |
+
+---
+
+# Historical record — earlier runs (preserved)
 
 ## Approved decisions
 
