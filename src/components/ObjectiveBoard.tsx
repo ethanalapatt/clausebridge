@@ -56,6 +56,7 @@ export function ObjectiveBoard() {
       {importOpen && <ImportDialog onClose={() => setImportOpen(false)} />}
 
       <Panel
+        className="shrink-0"
         title="Document"
         subtitle={revision.source === "seed" ? "Bundled fictional sample" : "Pasted text"}
       >
@@ -84,7 +85,11 @@ export function ObjectiveBoard() {
         </div>
       </Panel>
 
-      <Panel title="Negotiating as" subtitle="Filters which fictional fallback wording is offered">
+      <Panel
+        className="shrink-0"
+        title="Negotiating as"
+        subtitle="Filters which fictional fallback wording is offered"
+      >
         <div className="flex gap-1.5" role="group" aria-label="Party role">
           {PARTY_ROLES.map((role: PartyRole) => (
             <button
@@ -138,6 +143,7 @@ export function ObjectiveBoard() {
       <ConstraintsPanel state={state} />
 
       <Panel
+        className="shrink-0"
         title="Clause outline"
         subtitle="Select clauses for the agent; mark what cannot move"
         actions={
@@ -317,6 +323,7 @@ function ConstraintsPanel({ state }: { state: AppState }) {
 
   return (
     <Panel
+      className="shrink-0"
       title="Constraints"
       subtitle="Deterministic conditions checked against exact clause text"
       actions={

@@ -43,7 +43,7 @@ export function Panel({
           {actions}
         </header>
       )}
-      <div className={cx("min-h-0 flex-1", bodyClassName ?? "overflow-y-auto p-4")}>{children}</div>
+      <div className={cx("min-h-0 flex-1", bodyClassName ?? "p-4")}>{children}</div>
     </section>
   );
 }

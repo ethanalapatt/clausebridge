@@ -318,11 +318,18 @@ commit:
   clause ID was rejected without changing the agreement, and every resulting entry was tagged
   `native WebMCP`. `src/webmcp/register.test.ts` covers the same contract without a browser.
 
-**Not run, and not claimed as passing:** the interactive Chrome pass — driving the golden path in a
-real browser, checking the console, and eyeballing the narrow-screen layout. The Claude-in-Chrome
-extension reported `Browser extension is not connected` in this session. Component rendering is
-therefore covered by the production build and by server-rendered output, not by a DOM test
-environment; none is installed and installing one was out of scope.
+- The **thirteen-step walkthrough was driven in Chrome** end to end against the running app: the
+  board reported one Must `unresolved` on the untouched agreement, two packages staged through the
+  same handler produced contrasting verdicts, choosing one proposal left its rival *awaiting
+  decision*, a human edit moved a Must from *not met* to *satisfied*, replay called no handler, all
+  four exports rendered, and a reload restored the session. The **console was clean** — no errors,
+  no warnings, no hydration mismatch.
+
+**Not run, and not claimed as passing:** the narrow-screen visual check. The automation could not
+change the browser's viewport, so the below-`lg` pane-tab layout was never seen rendered; it is
+present in the markup and the build. Component rendering is otherwise covered by the production
+build and server-rendered output, not by a DOM test environment — none is installed and installing
+one was out of scope.
 
 Known non-blocking issue: `npm audit` reports advisories in `postcss`, reached transitively through
 `next@15`'s build toolchain. The only offered fix is a breaking upgrade to `next@16`. It is a
@@ -338,8 +345,7 @@ Not yet done, and not attempted in this local build:
 
 - Hosting and the Devpost submission materials. (The source is published at
   https://github.com/ethanalapatt/clausebridge; it is not deployed anywhere.)
-- The interactive Chrome pass against the current UI, including a narrow-screen visual check — the
-  browser extension was not connected in the session that built this.
+- A narrow-screen visual check. The automation could not resize the browser viewport below `lg`.
 - Richer pasted-text segmentation (numbered sub-clauses, definition lists, schedules).
 - Multiple bundled sample agreements and a broader fallback library.
 - More constraint rules. The six shipped here are narrow on purpose; each new one needs a pattern

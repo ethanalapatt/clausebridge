@@ -59,6 +59,7 @@ committed, and every pushed SHA was verified against `git ls-remote origin refs/
 | E+F | Objective board, comparison surface, provenance panel, timeline/replay, export bundle UI | verify exit 0 (316 tests); loopback SSR HTTP 200, 61,176 bytes, no dev-server errors | `51d6217` | `51d6217` — verified |
 | G | 13-step demo director, presentation mode, live region, document relationship map | 12 new tests; verify exit 0 (328 tests) | `78e9966` | `78e9966` — verified |
 | H | Import review hardening, clause-navigation shortcuts, README, this record | verify exit 0 (328 tests) | `2490da6` | `2490da6` — verified |
+| I | **Interactive Chrome pass** and the objective-board layout bug it found | verify exit 0 (328 tests); thirteen-step walkthrough driven in Chrome, console clean | _this commit_ | _this commit_ |
 
 ## Current state
 
@@ -105,11 +106,54 @@ Exact commands and results, this run:
 | `lsof -nP -iTCP:3100 -sTCP:LISTEN` | `127.0.0.1:3100` only — loopback, not LAN-facing |
 | `git ls-remote origin refs/heads/main` | matches local `HEAD` after every milestone push |
 
-### Checks that did NOT run — recorded as unavailable, not as passes
+### Interactive Chrome pass — RAN, on the user's prompt, after the extension was connected
 
-- **Interactive Chrome golden path and narrow-screen visual check.** `mcp__claude-in-chrome__tabs_context_mcp` returned `Browser extension is not connected.` Attempted once; not retried, because the fix is outside this sandbox — the user must connect the Claude-in-Chrome extension. Next diagnostic: with the extension connected, load http://127.0.0.1:3100, run the thirteen-step walkthrough, watch the console, then narrow the window below `lg` to check the pane tabs.
-- **Component/DOM tests.** No `jsdom`, `happy-dom` or `@testing-library` is present in `node_modules`, and installing one is prohibited this run. Component rendering is covered by the production build and by server-rendered output only.
-- **Native WebMCP in this session.** No browser exposed `document.modelContext`, so the app reported `WebMCP unavailable` and every local call was tagged `local handler test`. The native path is covered by `src/webmcp/register.test.ts` and was driven by injection in an earlier session.
+Driven against http://127.0.0.1:3100 at a 1278x879 viewport. The full thirteen-step walkthrough was
+executed through the real UI:
+
+| Step | Observed |
+| --- | --- |
+| Setup | Demo strip advanced 2/13 → 4/13; role, lock, priorities and five constraints applied. |
+| Board honesty | Against the untouched agreement: **1 Must met, 2 Must unresolved, 1 Prefer unmet, 1 present anyway, 2 manual review** — the seeded retention clause reported `Unresolved`, not guessed. |
+| `get_negotiation_context` | Agreement scrolled to the liability clause and pulsed; provenance recorded with `Read-only` effect. |
+| Two packages | Customer-Protective and Fast Close staged through the same handler; agreement untouched; 6/13. |
+| Comparison | Customer-Protective **2 Must met, 1 unresolved, 1 Prefer met**; Fast Close **1 Must met, 1 Must unmet, 1 unresolved, 1 Prefer unmet**. Both flagged “touches 1 locked clause”. 7/13. |
+| Per-clause choice | Chose the protective Termination proposal → “Governs this clause”; the Fast Close rival stayed **Awaiting decision**, not rejected. 8/13. |
+| Human edit | Rewrote the Fast Close retention proposal to fifteen days → the verdict moved **Must · Not met → Must · Satisfied**. 9/13. |
+| Rejection | Both liability proposals rejected; clause header still reads `Non-negotiable` + `Rejected`. 10/13. |
+| Revisions | Inspector listed `rev-0001 — approve Term and Termination` and `rev-0002 — edit Data Retention and Deletion`, selectable against the original agreement. |
+| Replay | Stepped the record (11 steps); `toolCalls` count unchanged — no handler was called. 12/13. |
+| Exports | All four previews render. Redline contains the human's wording; the rejected liability clause carries **no diff marks**. Decision log: 2 packages, 5 constraints, 2 preview revisions, 14 events. Tool log: 3 calls, all `local-handler-test`, WebMCP `unavailable`. |
+| Reload | Session restored from `localStorage` with the banner and 12/13 intact. |
+| Relationship map | 12 nodes, 16 edges (13 authored + 3 derived); focusing Liability highlighted its neighbourhood and listed each basis. |
+| Presentation mode | Opened on the same live state, reported **Step 13 of 13**, Escape exited. |
+| Keyboard | `J` walked the document focus between clauses. |
+| Console | **Clean.** Only React DevTools info and Fast Refresh logs. No errors, no warnings, no hydration mismatch. |
+
+**One real bug was found and fixed by this pass:** every panel in the objective board was being
+flex-compressed and given its own scrollbar — the Document panel rendered 32px of a 135px body —
+because the board became a flex column scroller while `Panel` still defaulted its body to
+`overflow-y-auto`. The rail is now the single scroller and the panels keep their natural height
+(measured after the fix: 198 / 298 / 288 / 696 px, nothing clipped, board `scrollHeight` 1516 over a
+701px viewport).
+
+**Step 13 was deliberately not clicked.** Downloading writes four files into the user's Downloads
+folder, which they had not asked for; the previews were verified instead and the download path is
+covered by `store.test.ts` and `goldenPath.test.ts`.
+
+### Checks that still did NOT run — recorded as unavailable, not as passes
+
+- **Narrow-screen visual check.** `resize_window` had no effect on this browser: the viewport stayed
+  pinned at 1278x879 through resizes to 1680x1020, 1250x1000 and 820x900, so the below-`lg` pane-tab
+  layout could not be triggered. It is present in the markup and in the production build, but it was
+  not seen rendered. Next diagnostic: resize the Chrome window by hand below 1024px and confirm the
+  **Objectives / Agreement / Agent** tabs appear.
+- **Component/DOM tests.** No `jsdom`, `happy-dom` or `@testing-library` is present in
+  `node_modules`, and installing one is prohibited this run.
+- **Native WebMCP in this session.** Chrome did not expose `document.modelContext`, so the app
+  correctly reported `WebMCP unavailable` and every call was tagged `local handler test` — never
+  native. The native path is covered by `src/webmcp/register.test.ts` and was driven by injection in
+  an earlier session.
 
 ## Architecture and dependencies
 
@@ -136,24 +180,23 @@ holds no business logic of its own and no second copy of a verdict.
 
 ## Blockers
 
-- **Interactive browser verification** — blocked on the Claude-in-Chrome extension not being
-  connected. One attempt, not retried. Non-fatal: every other milestone was independently
-  completable, and the walkthrough's behaviour is covered by `src/app/goldenPath.test.ts` through the
-  same store the UI uses. What remains unverified is **visual** and **console** behaviour only.
+- **Narrow-screen rendering** — `resize_window` does not change this browser's viewport, so the
+  below-`lg` layout could not be triggered. Three sizes attempted; not retried further, because the
+  fix is outside this sandbox. Non-fatal and visual only.
 - No repair loop reached the three-attempt limit this run.
 
 ## Next exact action
 
 1. **Stop and wait for the user's visual and product review** of http://127.0.0.1:3100.
-2. If the user wants the interactive Chrome pass, connect the browser extension and re-run the
-   thirteen-step walkthrough, then narrow the window below `lg`.
+2. Resize the Chrome window by hand below 1024px to confirm the pane tabs — the only check the
+   automated pass could not perform.
 3. Nothing else is queued. Deployment, demo video and Devpost remain unstarted and unauthorized.
 
 ## External work
 
 **Performed, authorized by `ClauseBridge_Product_Elevation_Claude_Brief.md` §2:**
 
-- Eight `git push origin main` fast-forwards to the existing approved remote, each after its
+- Nine `git push origin main` fast-forwards to the existing approved remote, each after its
   milestone passed `npm run verify`, each verified with `git ls-remote`.
 - Read-only `git remote -v`, `git status`, `git log`, `git ls-remote`.
 - No force push, no history rewriting, no branch/remote change, no PR, issue, release, Actions,
