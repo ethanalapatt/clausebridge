@@ -3,9 +3,9 @@
 ## Status
 
 - Current phase: **Product elevation** (per `ClauseBridge_Product_Elevation_Claude_Brief.md`, the latest and highest-priority instruction).
-- Current milestone: see the milestone ledger below.
-- Overall state: the MVP described further down is complete, published, and preserved. This run elevates it into an agent-native negotiation workspace: objective board, deterministic constraints, multi-package comparison, revision timeline and replay, richer WebMCP provenance, and a full guided golden path.
-- Last updated: during the elevation run.
+- Current milestone: **H — complete.** All Priority 0 and Priority 1 work is done and verified.
+- Overall state: the MVP described in the historical record is preserved and elevated into an agent-native negotiation workspace — objective board with deterministic constraints, three contrasting packages compared per clause, preview revisions, a replayable timeline, full WebMCP provenance, a document relationship map, presentation mode, and a four-file export bundle. `npm run verify` exits 0 with **328 tests**.
+- Last updated: at the end of the elevation run, awaiting the user's visual review.
 
 ## Authority for this run
 
@@ -47,14 +47,124 @@ persistence; redline migration across revisions; whole-document comparison; keyb
 
 ## Milestone ledger — elevation run
 
+Every row passed `npm run verify` (typecheck → lint → tests → production build) before it was
+committed, and every pushed SHA was verified against `git ls-remote origin refs/heads/main`.
+
 | # | Milestone | Verification | Commit | Pushed |
 | --- | --- | --- | --- | --- |
-| A | Deterministic constraint engine (`src/core/constraints.ts`) | 32 new tests; `npm run verify` exit 0 (236 tests) | `e2310c0` | `e2310c0` — remote SHA verified |
-| B | State architecture hardening: objective board, structured timeline events, tool-call provenance records, preview-revision checkpoints, one-approval-per-clause | 28 new tests in `objectives.test.ts`; `npm run verify` exit 0 (264 tests) | `c5daf6a` | `c5daf6a` — remote SHA verified |
-| C | Three contrasting alternative packages + the review layer joining constraints to proposals (`src/core/review.ts`) | 25 new tests in `review.test.ts`; `npm run verify` exit 0 (289 tests) | `d336517` | `d336517` — remote SHA verified |
-| D | Replay and revision inspector (`src/core/replay.ts`), 13-step golden-path director, JSON export bundle | 16 new replay tests, 9 new export tests, rewritten 13-step integration test; `npm run verify` exit 0 (316 tests) | `d4a7a13` | `d4a7a13` — remote SHA verified |
-| E+F | The product surfaces: objective board, package comparison, WebMCP provenance panel, timeline/replay/revision inspector, export bundle | `npm run verify` exit 0 (316 tests); loopback SSR smoke test HTTP 200, 61,176 bytes, no dev-server errors | `51d6217` | `51d6217` — remote SHA verified |
-| G | 13-step demo director, presentation mode, live region for screen readers, document relationship map | 12 new relationship tests; `npm run verify` exit 0 (328 tests) | _pending_ | _pending_ |
+| A | Deterministic constraint engine (`src/core/constraints.ts`) | 32 new tests; verify exit 0 (236 tests) | `e2310c0` | `e2310c0` — verified |
+| B | State hardening: objective board, structured timeline events, tool-call provenance, preview-revision checkpoints, one-accepted-proposal-per-clause | 28 new tests; verify exit 0 (264 tests) | `c5daf6a` | `c5daf6a` — verified |
+| C | Three contrasting packages + the review layer (`src/core/review.ts`) | 25 new tests; verify exit 0 (289 tests) | `d336517` | `d336517` — verified |
+| D | Replay and revision inspector, 13-step director, JSON export bundle | 25 new tests + rewritten integration test; verify exit 0 (316 tests) | `d4a7a13` | `d4a7a13` — verified |
+| E+F | Objective board, comparison surface, provenance panel, timeline/replay, export bundle UI | verify exit 0 (316 tests); loopback SSR HTTP 200, 61,176 bytes, no dev-server errors | `51d6217` | `51d6217` — verified |
+| G | 13-step demo director, presentation mode, live region, document relationship map | 12 new tests; verify exit 0 (328 tests) | `78e9966` | `78e9966` — verified |
+| H | Import review hardening, clause-navigation shortcuts, README, this record | verify exit 0 (328 tests) | _this commit_ | _this commit_ |
+
+## Current state
+
+- Branch `main`, upstream `origin/main`, remote `https://github.com/ethanalapatt/clausebridge.git`.
+- Working tree clean apart from the two untracked brief files (`ClauseBridge_Product_Elevation_Claude_Brief.md`, `do this one.md`), deliberately left untracked.
+- `npm run verify` — **exit 0**: `tsc --noEmit` clean, `eslint .` no findings, **328 tests across 17 files**, production build compiled, `/` statically prerendered, 103 kB shared first-load JS.
+- Local preview: `npx next dev --hostname 127.0.0.1 --port 3100` → **http://127.0.0.1:3100**, verified listening on IPv4 loopback only via `lsof -nP -iTCP:3100 -sTCP:LISTEN`.
+
+## Priority 0 — complete
+
+| § | Requirement | State |
+| --- | --- | --- |
+| 6.1 | Negotiation objective board: role, priorities, clause selection, non-negotiables, Must/Prefer/Avoid constraints, human note, compact summary visible while reviewing | Done. `ObjectiveBoard.tsx`; `ObjectiveSummary` is rendered above the comparison. |
+| 6.2 | Alternative package comparison: multiple packages coexist, three seeded alternatives, per-clause/per-package evidence, per-clause choice, edit before approval, independent rejection, alternatives preserved, resulting revision visible, factual counts only | Done. `PackageComparison.tsx` over `core/review.ts`. Accepting one proposal returns its rival to *awaiting decision*, never rejects it. |
+| 6.3 | Deterministic constraint evaluation with ID, status, exact evidence, explanation, manual-review flag; recomputed on staging, edit, decision and board change; `unresolved` for ambiguity | Done. `core/constraints.ts` (pure) + `core/review.ts` (derived, never cached). |
+| 6.4 | Review state machine: original / staged / edited / approved / rejected / preview separated; approve, reject, edit-then-approve, note, undo, restore a prior revision, full reset | Done. `core/state.ts`; checkpoints restore by replaying decisions, never by overwriting clause text. |
+| 6.5 | Revision timeline and replay: stable event IDs, source attribution, affected IDs, before/after, click-to-focus, revision inspector, replay without rerunning tools | Done. `core/replay.ts` + `Timeline.tsx`. |
+| 6.6 | Guided golden path: the brief's 13 steps, progress strip, one-sentence next action, never blocking, derived from real state, reset and presentation controls | Done. `core/demo.ts` + `DemoGuide.tsx` + `PresentationMode.tsx`. |
+| 6.7 | WebMCP activity and provenance: tool, source, input summary, revision, clause IDs, validation, result, state effect, failure detail, developer inspector | Done. `ToolCallRecord` in state, rendered by `ToolActivity.tsx`. |
+| 6.8 | State integrity, tests, visual polish | Done. 328 tests; persistence bumped to v2 so a v1 payload is rejected rather than hydrated. |
+
+## Priority 1 — complete
+
+| § | Requirement | State |
+| --- | --- | --- |
+| 7.1 | Agreement relationship map from explicit bundled metadata, focus/state aware, click to focus, no graph dependency, secondary to the document | Done. `core/relationships.ts` + inline SVG, collapsed by default. |
+| 7.2 | Import and segmentation review: plain text only, conservative segmentation, structural confidence, review before tool use, title/type correction, merge and split, revision regeneration, clear rejection, never transmitted | Done. `ImportDialog.tsx` plus a standing notice on any guessed boundary. |
+| 7.3 | Export bundle: brief, redlined agreement, decision log JSON, tool activity JSON, each with the disclaimer and observed revision | Done. `core/exports.ts` + `ExportPanel.tsx`. |
+| 7.4 | Accessibility and keyboard flow | Done: semantic controls, `aria-pressed`/`aria-selected`/`aria-expanded`, visible focus ring, non-colour status glyphs, reduced-motion honoured, a polite live region announcing the newest recorded event, and A/R/U/J/K/G shortcuts inert while typing. |
+| 7.5 | Presentation mode using the same state and handlers | Done. `PresentationMode.tsx`. |
+
+## Verification evidence
+
+Exact commands and results, this run:
+
+| Command | Result |
+| --- | --- |
+| `npm run typecheck` (`tsc --noEmit`) | pass, no output |
+| `npm run lint` (`eslint .`) | pass, no findings |
+| `npm run test` (`vitest run`) | **328 passed**, 17 files, 0 failed |
+| `npm run build` (`next build`) | pass; `/` prerendered static, 103 kB shared first-load JS |
+| `npm run verify` | **exit 0** |
+| `curl http://127.0.0.1:3100/` | **HTTP 200**, 61,176 bytes, workspace markup present, dev-server log clean |
+| `lsof -nP -iTCP:3100 -sTCP:LISTEN` | `127.0.0.1:3100` only — loopback, not LAN-facing |
+| `git ls-remote origin refs/heads/main` | matches local `HEAD` after every milestone push |
+
+### Checks that did NOT run — recorded as unavailable, not as passes
+
+- **Interactive Chrome golden path and narrow-screen visual check.** `mcp__claude-in-chrome__tabs_context_mcp` returned `Browser extension is not connected.` Attempted once; not retried, because the fix is outside this sandbox — the user must connect the Claude-in-Chrome extension. Next diagnostic: with the extension connected, load http://127.0.0.1:3100, run the thirteen-step walkthrough, watch the console, then narrow the window below `lg` to check the pane tabs.
+- **Component/DOM tests.** No `jsdom`, `happy-dom` or `@testing-library` is present in `node_modules`, and installing one is prohibited this run. Component rendering is covered by the production build and by server-rendered output only.
+- **Native WebMCP in this session.** No browser exposed `document.modelContext`, so the app reported `WebMCP unavailable` and every local call was tagged `local handler test`. The native path is covered by `src/webmcp/register.test.ts` and was driven by injection in an earlier session.
+
+## Architecture and dependencies
+
+Unchanged stack: Next.js 15 App Router, React 19, TypeScript strict (`noUncheckedIndexedAccess`),
+Tailwind CSS v4, Vitest (node environment), ESLint. **No package was installed, updated or
+downloaded this run.** No framework change, no new dependency, no `npx` that fetches anything.
+
+Deterministic domain logic stays out of the components: `constraints`, `review`, `replay`,
+`relationships`, `state`, `handlers`, `exports`, `diff`, `segmentation`, `migration`, `persistence`
+are all framework-free and unit-tested. The UI reads through selectors and dispatches actions; it
+holds no business logic of its own and no second copy of a verdict.
+
+## Product-safety invariants held
+
+- Exactly two WebMCP tools, names, descriptions and input schemas unchanged and frozen.
+- Both tools call the same deterministic handlers the labeled local console calls. No demo-only path.
+- No native registration is claimed unless `document.modelContext.registerTool` was actually found.
+- No risk score anywhere; package summaries are factual counts.
+- No wording is generated: a proposal can only carry text from the bundled fictional library, and the
+  comparison names which entry it came from and whether the human has since rewritten it.
+- The source agreement is never mutated. Accepted wording is derived from live decisions.
+- Constraint verdicts return `unresolved` rather than guessing; the seeded data-retention clause does
+  exactly that, on purpose.
+
+## Blockers
+
+- **Interactive browser verification** — blocked on the Claude-in-Chrome extension not being
+  connected. One attempt, not retried. Non-fatal: every other milestone was independently
+  completable, and the walkthrough's behaviour is covered by `src/app/goldenPath.test.ts` through the
+  same store the UI uses. What remains unverified is **visual** and **console** behaviour only.
+- No repair loop reached the three-attempt limit this run.
+
+## Next exact action
+
+1. **Stop and wait for the user's visual and product review** of http://127.0.0.1:3100.
+2. If the user wants the interactive Chrome pass, connect the browser extension and re-run the
+   thirteen-step walkthrough, then narrow the window below `lg`.
+3. Nothing else is queued. Deployment, demo video and Devpost remain unstarted and unauthorized.
+
+## External work
+
+**Performed, authorized by `ClauseBridge_Product_Elevation_Claude_Brief.md` §2:**
+
+- Seven `git push origin main` fast-forwards to the existing approved remote, each after its
+  milestone passed `npm run verify`, each verified with `git ls-remote`.
+- Read-only `git remote -v`, `git status`, `git log`, `git ls-remote`.
+- No force push, no history rewriting, no branch/remote change, no PR, issue, release, Actions,
+  Pages, collaborator or repository-setting change. No `git pull` or `git fetch`.
+
+**NOT performed, and not authorized without new explicit instruction:**
+
+- Vercel or any other hosting, tunnel, public preview or LAN-facing server.
+- Demo video production and Devpost submission.
+- Any external API, LLM backend, package install, registry access, or web browsing.
+- Any read or write outside this folder.
 
 ---
 

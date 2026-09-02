@@ -7,13 +7,13 @@ import { useSession, useStore } from "@/app/useClauseBridge";
 /**
  * Keyboard shortcuts for the review loop.
  *
- * Reviewing a package means the same three keystrokes over and over, so the
- * common decisions get single keys aimed at the *first still-undecided* redline
- * — the one a reviewer is actually looking at.
+ * Reviewing a package means the same handful of keystrokes over and over, so the
+ * common moves get single keys: decide the first still-undecided proposal, walk
+ * the document, jump to whatever still needs a call.
  *
  * Deliberately inert while the user is typing. Without the editable-target
  * guard, writing the letter "a" into a note or a replacement textarea would
- * approve a redline behind the dialog.
+ * approve a proposal behind the dialog.
  */
 export function KeyboardShortcuts() {
   const store = useStore();
@@ -38,6 +38,19 @@ export function KeyboardShortcuts() {
 
       const state = store.getSnapshot().present;
       const next = state.edits.find((edit) => edit.status === "pending");
+      const clauses = state.revision.clauses;
+
+      /** Moves the document focus by one clause, wrapping at each end. */
+      function step(delta: number) {
+        if (clauses.length === 0) return;
+        const current = clauses.findIndex((clause) => clause.id === state.focusedClauseId);
+        const from = current === -1 ? (delta > 0 ? -1 : 0) : current;
+        const index = (from + delta + clauses.length) % clauses.length;
+        const clause = clauses[index];
+        if (clause !== undefined) {
+          store.dispatch({ type: "focus-clause", clauseId: clause.id });
+        }
+      }
 
       switch (event.key.toLowerCase()) {
         case "a":
@@ -56,6 +69,20 @@ export function KeyboardShortcuts() {
           event.preventDefault();
           store.undo();
           return;
+        case "j":
+          event.preventDefault();
+          step(1);
+          return;
+        case "k":
+          event.preventDefault();
+          step(-1);
+          return;
+        case "g":
+          // Jump to whatever still needs a decision, wherever it is.
+          if (next === undefined) return;
+          event.preventDefault();
+          store.dispatch({ type: "focus-clause", clauseId: next.clauseId });
+          return;
         default:
       }
     }
@@ -70,8 +97,9 @@ export function KeyboardShortcuts() {
 /** Rendered in the demo strip so the shortcuts are discoverable, not hidden. */
 export function ShortcutHint() {
   return (
-    <span className="hidden items-center gap-1 text-[10px] text-ink-400 xl:inline-flex">
-      <Key>A</Key> approve · <Key>R</Key> reject · <Key>U</Key> undo
+    <span className="hidden items-center gap-1 text-[10px] text-ink-400 2xl:inline-flex">
+      <Key>A</Key> accept · <Key>R</Key> reject · <Key>U</Key> undo · <Key>J</Key>
+      <Key>K</Key> clause · <Key>G</Key> next undecided
     </span>
   );
 }

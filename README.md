@@ -1,18 +1,27 @@
 # ClauseBridge
 
-A structured contract-redlining room where a human sets non-negotiables and their browser agent
-retrieves exact clause context and stages independently approvable redlines — through typed
-[WebMCP](https://github.com/webmachinelearning/webmcp) browser tools rather than by scraping the
-rendered page.
+An agent-native contract negotiation workspace. The human sets objectives, constraints and
+non-negotiables; a browser agent retrieves exact clause context and stages *alternative* redline
+packages through typed [WebMCP](https://github.com/webmachinelearning/webmcp) tools rather than by
+scraping the rendered page. Every proposal is grounded in bundled text, explainable against the
+human's stated conditions, reversible, comparable side by side, and replayable.
 
 > **Not legal advice.** ClauseBridge is a document-operations prototype. The bundled agreement, the
 > alternative wording, and every rationale in this repository are **fictional** material authored for
 > a demonstration. Nothing here asserts that any wording is legally correct, safer, or preferable, and
 > nothing was retrieved from a real contract, a legal database, or the web.
 
-**Status: Local MVP.** The complete two-tool collaboration loop runs locally — retrieval, staging,
-independent decisions, undo, audit log, and real Markdown downloads. It is deliberately not a general
-legal platform; see [What remains](#what-remains).
+**Status: complete local product.** The two-tool collaboration loop runs end to end — objective
+board with deterministic constraints, exact retrieval, multiple contrasting packages staged and
+compared, per-clause choice, human edits, preview revisions, a replayable timeline, and a four-file
+export bundle. It is deliberately not a general legal platform; see [What remains](#what-remains).
+
+**What it is built to show**
+
+1. The agent sees authoritative contract state through typed tools, not through the page.
+2. The human defines the goals, the constraints and the non-negotiables.
+3. The agent may retrieve context and stage alternatives — it cannot finalize anything.
+4. Every proposal is grounded, explainable, reversible, comparable and replayable.
 
 ---
 
@@ -52,35 +61,68 @@ npx next dev --hostname 127.0.0.1 --port 3100
 ## The 60-second demo
 
 The app seeds itself, so this flow is available the moment the page loads. The **Guided demo** strip
-under the header tracks all six steps and ticks each one only when the underlying operation has
-actually run — nothing there is scripted.
+under the header tracks all thirteen steps and ticks each one only when the underlying operation has
+actually run — a tool call really recorded with those clause IDs, a package really staged, a
+decision really taken, a surface really opened. Nothing there is scripted.
 
 1. **Northstar SaaS Services Agreement — Fictional Demo** loads automatically: a preamble plus 11
    invented clauses, drafted vendor-favorable so there is something real to push back on.
-2. Press **Set up golden path** in the demo strip. That sets the **Customer** role, prioritises
-   *termination* and *data retention*, locks *9. Limitation of Liability* as non-negotiable, and
-   selects clauses 7, 9 and 10. Each of those controls also works by hand in the left rail.
-3. In the right rail's **Tools** tab, press **Run handler locally** under `get_negotiation_context`.
-   The agreement pane scrolls to the liability clause and pulses. The agent now holds exact clause
-   text, the fictional fallback options for the customer posture, and the current decision state.
-4. Press **Run handler locally** under `stage_redline_package` (pre-filled with the three-clause
-   **Customer Baseline**). Three redlines appear in the gutter beneath their own clauses, each with
-   its source text, an exact diff, a rationale, and a required/preferred/optional tag.
-5. Exercise independent control: **Approve** on *Term and Termination*, **Edit** on *Data Retention*
-   (change the wording and save), **Reject** on *Limitation of Liability*, and add a note. The same
-   controls are in the right rail's **Redlines** and **Decisions** tabs.
-6. Open the **Export** tab, or **Preview & export** in the header, and press **Download .md** for the
-   negotiation brief and the redlined agreement. The **Changes** tab shows what you have agreed to
-   across the whole document; **Activity** shows the chronological audit trail.
+2. Press **Set up the board** in the demo strip. That sets the **Customer** role, locks
+   *9. Limitation of Liability*, prioritises *termination* and *data retention*, and puts five
+   constraints on the objective board — two **Must**, one **Prefer**, one **Avoid**, and liability
+   marked for manual review. Every one of those controls also works by hand.
+3. Read the board. Against the agreement as it stands it reports, honestly: termination notice
+   **satisfied**, non-renewal notice **not met** (the clause says ninety days), automatic renewal
+   **present anyway**, and data deletion **unresolved** — the seeded clause lets Northstar delete
+   "at its discretion", which contains no deadline any rule can read.
+4. In the right rail's **Agent** tab, open the local handler console and run
+   `get_negotiation_context`. The agreement scrolls to the liability clause and pulses; the call
+   appears above with its input, what validation concluded, and the note that it changed nothing.
+5. Load **Customer-Protective** and run `stage_redline_package`. Then load **Fast Close** and run it
+   again. Two contrasting packages now coexist. The agreement is untouched.
+6. Open **Compare**. Each clause shows both alternatives against how it currently reads, with the
+   exact diff, the rationale, the library entry the wording came from, and where each lands on your
+   constraints. Customer-Protective meets both Musts; Fast Close misses the deletion deadline by
+   thirty days, and says so with the sentence it read.
+7. Choose per clause, not per package. **Choose this** on the protective *Term and Termination*
+   proposal — its rival returns to *awaiting decision* rather than being rejected for you, and stays
+   available. **Edit** the Fast Close *Data Retention* proposal to fifteen days and save: the unmet
+   Must turns satisfied. **Reject** both liability proposals and leave the clause locked.
+8. Open **Timeline**. **Revisions** shows what changed between two approved states, and can restore
+   one by replaying its decisions. **Replay** steps through the record — it calls no handler and
+   invents no result.
+9. Open **Export** and download all four: the negotiation brief, the redlined Markdown, the decision
+   log JSON and the tool activity JSON.
 
 `↶ Undo` in the header steps back one decision at a time. **Reset demo** restores the exact seeded
-starting state and clears the log and the undo stack.
+starting state and clears the log and the undo stack. **Presentation** opens a wide, low-density
+view of the same live state, driven by the same handlers.
 
-Keyboard: <kbd>A</kbd> approves and <kbd>R</kbd> rejects the first redline still awaiting a decision,
-and <kbd>U</kbd> undoes. All three are inert while you are typing in a field.
+Keyboard: <kbd>A</kbd> accepts and <kbd>R</kbd> rejects the first proposal still awaiting a
+decision, <kbd>U</kbd> undoes, <kbd>J</kbd>/<kbd>K</kbd> walk the document, and <kbd>G</kbd> jumps
+to whatever still needs a call. All are inert while you are typing in a field.
 
-On screens narrower than `lg`, the three panes become **Controls / Agreement / Agent** tabs, so every
-control stays reachable on a phone.
+On screens narrower than `lg`, the three panes become **Objectives / Agreement / Agent** tabs, so
+every control stays reachable on a phone.
+
+## Constraints, and what they are not
+
+A constraint is a *product* rule about the fictional agreement — "data deleted within 30 days", "no
+automatic renewal". It is never a legal judgement, and the product never claims one.
+
+Each of the six rules reads exactly one clause type with one narrow, published pattern, and returns:
+
+| Status | Meaning |
+| --- | --- |
+| **Satisfied** | The rule found wording that meets the condition, and shows the sentence. |
+| **Not met** | The rule found wording that does not, and shows the sentence. |
+| **Unresolved** | The clause contains nothing the rule knows how to read. Never a guess. |
+| **Not applicable** | The rule does not read this clause type. |
+
+Every verdict carries the exact text it was based on and a plain description of the evaluation.
+There is deliberately **no risk score anywhere in the product** — a weighted number would imply a
+judgement about which wording is better, which this product does not make. Package summaries are
+factual counts only.
 
 ## Why WebMCP is essential here
 
@@ -93,6 +135,17 @@ ClauseBridge exposes those structures directly. The agent receives stable clause
 text, the human's priorities and locks, and a bounded library of approved fallback language — and its
 proposals land in the same document the human is reading, where each one remains separately
 inspectable and reversible.
+
+Concretely, the typed surface buys six things a scraper cannot have:
+
+- **Stable IDs** that name a clause rather than a screen position.
+- **Revision validation** — an ID from a retired revision is rejected as *stale*, not silently
+  resolved to different text.
+- **Exact source text**, never a rendering of it.
+- **Bounded wording**: a proposal can only carry text from the bundled library, and the comparison
+  surface names which entry each one came from.
+- **Staged, not applied** — nothing a tool does reaches the agreement.
+- **Independent human approval**, one clause at a time, with the alternative preserved.
 
 ## Tool contracts
 
@@ -144,22 +197,28 @@ Validation is **strict and atomic** — one bad edit rejects the whole package a
 ## Architecture
 
 ```
-src/core/         deterministic, framework-free, fully unit-tested
-  types.ts          document / clause / edit / activity model
-  ids.ts            revision-namespaced ID construction
-  segmentation.ts   seeded + pasted-text segmentation, manual correction
-  diff.ts           word-level LCS diff
-  state.ts          reducer, selectors, undo stack
-  handlers.ts       the two tool handlers
-  exports.ts        negotiation brief + redlined Markdown
-  demo.ts           golden-path inputs, built from library text only
-  seed/             the fictional agreement and fallback library
-src/webmcp/       registration and the frozen tool schemas
-src/app/          the external store and the Next.js entry point
-src/components/   the three-part workspace
+src/core/            deterministic, framework-free, fully unit-tested
+  types.ts             document / clause / proposal / event / revision model
+  ids.ts               revision-namespaced ID construction
+  segmentation.ts      seeded + pasted-text segmentation, manual correction
+  diff.ts              word-level LCS diff
+  constraints.ts       the six deterministic rules and their evaluator
+  state.ts             reducer, selectors, checkpoints, undo stack
+  review.ts            proposals, packages and comparisons, derived from state
+  replay.ts            timeline stepping and the revision inspector
+  relationships.ts     the document relationship map
+  migration.ts         carrying proposals across a revision
+  persistence.ts       versioned browser-local session storage
+  handlers.ts          the two tool handlers
+  exports.ts           brief, redline, decision log, tool activity
+  demo.ts              package presets and the 13-step director, from library text only
+  seed/                the fictional agreement, fallback library and relationships
+src/webmcp/          registration and the frozen tool schemas
+src/app/             the external store and the Next.js entry point
+src/components/      the three-part workspace and presentation mode
 ```
 
-Four decisions shape everything else:
+Six decisions shape everything else:
 
 **One implementation, two entry points.** Native WebMCP `execute` callbacks and the labeled local
 test console call the *same* functions in `core/handlers.ts`. There is no demo-only code path that
@@ -174,7 +233,15 @@ a new revision and retires every prior ID, which is what lets a tool call carryi
 rejected as *stale* rather than silently resolving to different text.
 
 **The core is pure.** Timestamps are passed in rather than read from the clock, so the tests assert on
-exact output and the Markdown exports are byte-reproducible.
+exact output and every export is byte-reproducible.
+
+**Constraint verdicts are derived, never cached.** `review.ts` recomputes them from the wording on
+screen, so they cannot go stale after an edit, an approval, a rejection, or a change to the
+objective board. There is no second copy that could disagree with the text.
+
+**One accepted proposal per clause.** Accepting one returns any rival on the same clause to
+*awaiting decision* — two accepted proposals had no defined precedence. The alternative stays
+staged and comparable; it is never rejected on the human's behalf.
 
 ### WebMCP status and the local fallback
 
@@ -196,10 +263,17 @@ registration and surfaces the mismatch instead of improvising a compatibility la
 
 - **Northstar Systems, Inc.** is not a real company and the agreement is not a real contract. It is
   written deliberately vendor-favorable so the customer-side demo has substance.
-- The **fallback library** (`src/core/seed/fallbackLibrary.ts`) holds 14 invented alternatives keyed
-  by clause type and party role. Each carries its own `source: "ClauseBridge fictional demo library"`
-  label, and each note explains what the alternative *does* — never that it is correct or safer.
+- The **fallback library** (`src/core/seed/fallbackLibrary.ts`) holds 17 invented alternatives keyed
+  by clause type, party role and posture. Each carries its own
+  `source: "ClauseBridge fictional demo library"` label, and each note explains what the alternative
+  *does* — never that it is correct or safer.
+- The three **packages** — Customer-Protective, Balanced Compromise, Fast Close — are assembled from
+  those entries and nothing else. They are deliberately unranked: the constraint evaluator reports
+  where each stands against the human's conditions, and the human chooses.
 - A **neutral** reviewer is shown only neutral options, never one side's negotiating language.
+- The **relationship map** (`src/core/seed/relationships.ts`) holds 13 hand-authored edges, each
+  naming the exact basis it rests on. It is labelled a *document relationship map*: it asserts no
+  legal dependency and infers nothing from legal meaning.
 
 ## Scope and legal limitations
 
@@ -219,24 +293,36 @@ Deliberately **not** built, and not planned for this checkpoint:
 
 ## Verification
 
-`npm run verify` runs all of it. As of the current commit:
+`npm run verify` runs typecheck, lint, tests and the production build in order. As of the current
+commit:
 
-- **204 unit and integration tests pass** across segmentation, stable/stale IDs, diff, handler
-  validation, decision transitions, undo, reset, bulk package decisions, persistence and its
-  rejection of corrupt payloads, redline migration across revisions, whole-document comparison,
-  exports and export filenames, registration, the demo builder and checklist, the store, and the full
-  golden path end to end.
-- **Typecheck**, **lint**, and **production build** pass with no findings.
-- `src/app/goldenPath.test.ts` drives the brief's ten-step walkthrough through the same store the UI
-  and WebMCP both call, asserting that the source agreement stays byte-identical throughout, that a
-  rejected redline leaves no diff marks, and that repeating the same decisions produces byte-identical
-  exports with no wall-clock time in them.
-- The golden path was previously driven in Chrome with an **empty console** — no errors and no
-  hydration warnings. That interactive pass predates the current UI changes and has not been repeated
-  since; the server-rendered page returns HTTP 200 with no render errors.
-- The native path was verified by injecting a `document.modelContext`: both tools registered with the
-  exact schemas, `execute` routed into the same handlers, an unknown clause ID was rejected without
-  changing the agreement, and every resulting entry was tagged `native WebMCP`.
+- **328 unit and integration tests pass** across 17 files: segmentation, stable-versus-stale IDs,
+  diff, the six constraint rules and their evidence, handler validation, decision transitions,
+  one-accepted-proposal-per-clause, undo, reset, bulk package decisions, tool-call provenance,
+  preview-revision checkpoints and restoration, the review layer and its recomputation after edits
+  and board changes, replay and the revision inspector, the relationship map, persistence and its
+  rejection of corrupt payloads, proposal migration across revisions, all four exports, WebMCP
+  registration, the package presets and the 13-step director, the store, and the full walkthrough
+  end to end.
+- **Typecheck**, **lint** and **production build** pass with no findings.
+- `src/app/goldenPath.test.ts` drives the thirteen-step walkthrough through the same store the UI
+  and WebMCP both call: two contrasting packages staged through the same handler, a per-clause
+  choice that leaves the rival staged, a human edit turning an unmet Must into a satisfied one, the
+  preview revision the decisions produced, a replay that runs no tool, and all four exports. It
+  asserts that the source agreement stays byte-identical throughout, that a rejected proposal leaves
+  no diff marks, and that repeating the same decisions produces byte-identical exports with no
+  wall-clock time in them.
+- The loopback dev server returns **HTTP 200** with the workspace rendered and no errors in its log.
+- The native WebMCP path was verified in an earlier session by injecting a `document.modelContext`:
+  both tools registered with the exact schemas, `execute` routed into the same handlers, an unknown
+  clause ID was rejected without changing the agreement, and every resulting entry was tagged
+  `native WebMCP`. `src/webmcp/register.test.ts` covers the same contract without a browser.
+
+**Not run, and not claimed as passing:** the interactive Chrome pass — driving the golden path in a
+real browser, checking the console, and eyeballing the narrow-screen layout. The Claude-in-Chrome
+extension reported `Browser extension is not connected` in this session. Component rendering is
+therefore covered by the production build and by server-rendered output, not by a DOM test
+environment; none is installed and installing one was out of scope.
 
 Known non-blocking issue: `npm audit` reports advisories in `postcss`, reached transitively through
 `next@15`'s build toolchain. The only offered fix is a breaking upgrade to `next@16`. It is a
@@ -252,11 +338,12 @@ Not yet done, and not attempted in this local build:
 
 - Hosting and the Devpost submission materials. (The source is published at
   https://github.com/ethanalapatt/clausebridge; it is not deployed anywhere.)
-- A re-run of the interactive Chrome pass against the current UI, including a narrow-screen visual
-  check. There is no DOM test environment installed, so component rendering is covered only through
-  the production build and server-rendered output.
+- The interactive Chrome pass against the current UI, including a narrow-screen visual check — the
+  browser extension was not connected in the session that built this.
 - Richer pasted-text segmentation (numbered sub-clauses, definition lists, schedules).
 - Multiple bundled sample agreements and a broader fallback library.
+- More constraint rules. The six shipped here are narrow on purpose; each new one needs a pattern
+  narrow enough to defend and an `unresolved` path it is willing to take.
 
 ## License
 

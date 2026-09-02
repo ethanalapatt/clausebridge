@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import { useSession, useStore } from "@/app/useClauseBridge";
 import { Button, Chip, Mono, cx } from "@/components/ui";
@@ -37,6 +37,33 @@ export function ImportDialog({ onClose }: { onClose: () => void }) {
 
   const isPasted = session.present.revision.source === "pasted";
   const activeRevision = session.present.revision;
+  const closeRef = useRef<HTMLButtonElement>(null);
+
+  // Escape closes and focus starts inside, matching the export dialog. Native
+  // `confirm`-style blocking is deliberately avoided: it would freeze the page
+  // for any agent driving it.
+  useEffect(() => {
+    const previouslyFocused = document.activeElement as HTMLElement | null;
+    closeRef.current?.focus();
+
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") onClose();
+    }
+    window.addEventListener("keydown", onKeyDown);
+    return () => {
+      window.removeEventListener("keydown", onKeyDown);
+      previouslyFocused?.focus?.();
+    };
+  }, [onClose]);
+
+  // Why the text cannot be used, in the reader's terms rather than as a silently
+  // disabled button.
+  const rejection =
+    text.trim().length === 0
+      ? "Paste some agreement text to continue."
+      : preview === null || preview.clauses.length === 0
+        ? "This text produced no clauses. The segmenter needs at least one paragraph of prose; a single blank line or stray punctuation is not usable."
+        : null;
 
   function applyDrafts(drafts: ClauseDraft[], label: string) {
     store.dispatch({ type: "revise-document", drafts, label });
@@ -68,7 +95,7 @@ export function ImportDialog({ onClose }: { onClose: () => void }) {
               Plain text only. No PDF, DOCX, OCR, or external retrieval.
             </p>
           </div>
-          <Button variant="ghost" size="sm" onClick={onClose}>
+          <Button ref={closeRef} variant="ghost" size="sm" onClick={onClose}>
             Close
           </Button>
         </header>
@@ -111,7 +138,7 @@ export function ImportDialog({ onClose }: { onClose: () => void }) {
                   <strong className="font-semibold">
                     {preview.clauses.length} clause(s) detected ·{" "}
                     {preview.segmentationConfidence === "low"
-                      ? "low confidence"
+                      ? "low structural certainty"
                       : "segmented on explicit headings"}
                   </strong>
                   <p className="mt-1">
@@ -119,8 +146,26 @@ export function ImportDialog({ onClose }: { onClose: () => void }) {
                       ? "No explicit headings were found, so boundaries were guessed at paragraph breaks. Correct the titles and boundaries before letting the agent work on this document."
                       : "Headings were read from the source. You can still correct titles and boundaries after importing."}
                   </p>
+                  <p className="mt-1 text-[10px]">
+                    This describes how confident the <em>segmenter</em> is about where clauses begin
+                    and end. It says nothing about the content.
+                  </p>
                 </div>
               )}
+
+              {rejection !== null && (
+                <p
+                  role="status"
+                  className="rounded-md border border-ink-200 bg-ink-50 px-3 py-2 text-[11px] leading-relaxed text-ink-700"
+                >
+                  {rejection}
+                </p>
+              )}
+
+              <p className="text-[10px] leading-relaxed text-ink-400">
+                Nothing you paste leaves this tab. It is segmented in the browser and held in
+                local state; there is no upload, no network call, and no server to send it to.
+              </p>
 
               <div className="flex justify-end gap-2">
                 <Button variant="ghost" onClick={onClose}>
@@ -128,7 +173,7 @@ export function ImportDialog({ onClose }: { onClose: () => void }) {
                 </Button>
                 <Button
                   variant="primary"
-                  disabled={preview === null || preview.clauses.length === 0}
+                  disabled={rejection !== null}
                   onClick={() => {
                     store.dispatch({
                       type: "load-pasted",

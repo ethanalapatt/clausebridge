@@ -90,6 +90,8 @@ export function AgreementPane() {
           · fictional sample, not a real contract
         </p>
 
+        <SegmentationNotice state={state} />
+
         <div className="mt-5">
           <RelationshipMap />
         </div>
@@ -106,6 +108,35 @@ export function AgreementPane() {
           )}
         </div>
       </div>
+    </div>
+  );
+}
+
+/**
+ * Flags segments the segmenter guessed at.
+ *
+ * Pasted text without explicit headings is split at paragraph boundaries, which
+ * is a guess about structure. Saying so is the honest thing to do before a tool
+ * call works from those boundaries — it is a statement about *segmentation*, not
+ * about the content.
+ */
+function SegmentationNotice({ state }: { state: AppState }) {
+  const guessed = state.revision.clauses.filter((clause) => clause.inferred);
+  if (guessed.length === 0) return null;
+
+  return (
+    <div
+      role="status"
+      className="mt-4 rounded-md border border-edited-500 bg-edited-100 px-4 py-2.5 text-[11px] leading-relaxed text-edited-700"
+    >
+      <strong className="font-semibold">
+        {guessed.length} clause boundar{guessed.length === 1 ? "y was" : "ies were"} guessed.
+      </strong>{" "}
+      No explicit heading was found for {guessed.length === 1 ? "it" : "them"}, so the title and the
+      boundary come from paragraph structure rather than from the document. Correct{" "}
+      {guessed.length === 1 ? "it" : "them"} with <em>Paste / correct text</em> on the objective
+      board before letting the agent work from these clause IDs. This describes the segmenter&apos;s
+      certainty about structure, nothing about the content.
     </div>
   );
 }
