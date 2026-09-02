@@ -5,6 +5,8 @@ import type {
   AppState,
   ClauseType,
   DemoSetup,
+  FallbackEntry,
+  FallbackPosture,
   PartyRole,
   PriorityTag,
 } from "@/core/types";
@@ -64,14 +66,18 @@ export function buildContextInput(state: AppState): NegotiationContextInput {
 }
 
 /**
- * Builds the three-clause Customer Baseline package from library text.
+ * Assembles a package from the fictional library.
  *
- * Returns null when the active document has none of the demo clause types — a
- * pasted agreement, for instance — rather than inventing wording to fill the gap.
+ * `pick` chooses which entry stands for a clause type; everything else — clause
+ * resolution, no-op filtering, rationale text — is shared, so every package the
+ * demo can stage is built the same way and none of them can quietly generate
+ * wording. Returns null when the active document has none of the demo clause
+ * types, or the library has no alternative for it, rather than inventing text.
  */
-export function buildBaselinePackage(
+function buildFromLibrary(
   state: AppState,
-  role: PartyRole = state.partyRole,
+  packageLabel: string,
+  pick: (clauseType: ClauseType) => FallbackEntry | undefined,
 ): StageRedlineInput | null {
   const edits: RedlineEditInput[] = [];
 
@@ -79,10 +85,7 @@ export function buildBaselinePackage(
     const clause = state.revision.clauses.find((item) => item.clauseType === type);
     if (clause === undefined) continue;
 
-    // Prefer the reviewer's own posture, fall back to neutral, never the other side's.
-    const entry =
-      FALLBACK_LIBRARY.find((item) => item.clauseType === type && item.role === role) ??
-      FALLBACK_LIBRARY.find((item) => item.clauseType === type && item.role === "neutral");
+    const entry = pick(type);
     if (entry === undefined) continue;
 
     // A library entry identical to the current text would be a rejected no-op.
@@ -97,15 +100,99 @@ export function buildBaselinePackage(
   }
 
   if (edits.length === 0) return null;
+  return { packageLabel, edits };
+}
 
-  return {
-    packageLabel: role === "customer" ? CUSTOMER_BASELINE_LABEL : `${roleLabel(role)} Baseline`,
-    edits,
-  };
+/**
+ * Builds the three-clause Customer Baseline package from library text.
+ *
+ * Returns null when the active document has none of the demo clause types — a
+ * pasted agreement, for instance — rather than inventing wording to fill the gap.
+ */
+export function buildBaselinePackage(
+  state: AppState,
+  role: PartyRole = state.partyRole,
+): StageRedlineInput | null {
+  return buildFromLibrary(
+    state,
+    role === "customer" ? CUSTOMER_BASELINE_LABEL : `${roleLabel(role)} Baseline`,
+    (type) =>
+      // Prefer the reviewer's own posture, fall back to neutral, never the other side's.
+      FALLBACK_LIBRARY.find((item) => item.clauseType === type && item.role === role) ??
+      FALLBACK_LIBRARY.find((item) => item.clauseType === type && item.role === "neutral"),
+  );
 }
 
 function roleLabel(role: PartyRole): string {
   return role.charAt(0).toUpperCase() + role.slice(1);
+}
+
+// ---------------------------------------------------- alternative packages
+
+export interface PackagePreset {
+  posture: FallbackPosture;
+  label: string;
+  /** One line on what this alternative trades away. Never a recommendation. */
+  blurb: string;
+}
+
+/**
+ * The three contrasting alternatives the demo stages through the same approved
+ * handler, so they can be compared without any of them touching the agreement.
+ *
+ * They are deliberately not ranked. The constraint evaluator reports where each
+ * one stands against the human's stated conditions; the human chooses.
+ */
+export const PACKAGE_PRESETS: readonly PackagePreset[] = [
+  {
+    posture: "protective",
+    label: "Customer-Protective",
+    blurb: "Pushes hardest on retention, notice and the liability cap.",
+  },
+  {
+    posture: "balanced",
+    label: "Balanced Compromise",
+    blurb: "Symmetric wording that applies the same terms to both sides.",
+  },
+  {
+    posture: "fast-close",
+    label: "Fast Close",
+    blurb: "Concedes ground on the cap and the deletion window to shorten the exchange.",
+  },
+];
+
+export function findPreset(posture: FallbackPosture): PackagePreset | null {
+  return PACKAGE_PRESETS.find((preset) => preset.posture === posture) ?? null;
+}
+
+/**
+ * Builds one of the named alternatives.
+ *
+ * Role filtering matches `get_negotiation_context`: a party sees its own posture
+ * plus neutral entries, and a neutral reviewer sees only neutral ones, so a
+ * package can never quietly hand a reviewer the other side's wording.
+ */
+export function buildPackage(
+  state: AppState,
+  posture: FallbackPosture,
+  role: PartyRole = state.partyRole,
+): StageRedlineInput | null {
+  const preset = findPreset(posture);
+  if (preset === null) return null;
+
+  return buildFromLibrary(state, preset.label, (type) =>
+    FALLBACK_LIBRARY.find(
+      (item) =>
+        item.clauseType === type &&
+        item.posture === posture &&
+        (role === "neutral" ? item.role === "neutral" : item.role === role || item.role === "neutral"),
+    ),
+  );
+}
+
+/** Presets that would actually produce a package against the active document. */
+export function availablePresets(state: AppState): PackagePreset[] {
+  return PACKAGE_PRESETS.filter((preset) => buildPackage(state, preset.posture) !== null);
 }
 
 // -------------------------------------------------------------- golden path

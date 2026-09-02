@@ -12,6 +12,11 @@ import type { FallbackEntry } from "@/core/types";
 
 export const FALLBACK_LIBRARY_SOURCE = "ClauseBridge fictional demo library";
 
+/**
+ * Posture defaults to what the role implies: a party-specific entry argues that
+ * party's corner, a neutral one splits the difference. `fast-close` entries
+ * state theirs explicitly.
+ */
 const entry = (
   id: string,
   clauseType: FallbackEntry["clauseType"],
@@ -19,10 +24,12 @@ const entry = (
   label: string,
   note: string,
   text: string,
+  posture: FallbackEntry["posture"] = role === "neutral" ? "balanced" : "protective",
 ): FallbackEntry => ({
   id,
   clauseType,
   role,
+  posture,
   label,
   note,
   text,
@@ -255,5 +262,51 @@ export const FALLBACK_LIBRARY: readonly FallbackEntry[] = [
       "necessary to provide the Services to Customer and as otherwise permitted by the Data Retention " +
       "section. Customer grants Northstar a perpetual, royalty-free license to use feedback and " +
       "suggestions Customer voluntarily provides, provided such use does not identify Customer.",
+  ),
+
+  // ------------------------------------------------- fast-close alternatives
+  //
+  // Written for the reviewer who wants the deal signed this week. They concede
+  // ground the protective entries hold, and the constraint evaluator reports
+  // that plainly rather than presenting them as equivalent.
+  entry(
+    "fb-liability-customer-fast-1",
+    "liability",
+    "customer",
+    "Six-month cap, indemnity carve-out only",
+    "Fast-close alternative that accepts a lower cap and a single carve-out to avoid a long exchange on this section.",
+    "Except for a party's indemnification obligations, each party's total aggregate liability arising " +
+      "out of or relating to this Agreement shall not exceed the total fees paid by Customer in the six " +
+      "(6) months immediately preceding the event giving rise to the claim. Neither party shall be liable " +
+      "for indirect, incidental, special, consequential, or exemplary damages, or for loss of profits, " +
+      "revenue, or goodwill.",
+    "fast-close",
+  ),
+  entry(
+    "fb-termination-customer-fast-1",
+    "termination",
+    "customer",
+    "Mutual breach exit, renewal window shortened to 45 days",
+    "Fast-close alternative that leaves the renewal structure alone and only makes the breach exit mutual.",
+    "This Agreement begins on the Effective Date and continues for the Subscription Term stated in the " +
+      "Order Form. The Subscription Term renews automatically for successive twelve (12) month periods " +
+      "unless either party delivers written notice of non-renewal at least forty-five (45) days before " +
+      "the end of the then-current term. Northstar may terminate this Agreement for convenience upon " +
+      "thirty (30) days' written notice. Either party may terminate for the other's material breach that " +
+      "remains uncured thirty (30) days after written notice.",
+    "fast-close",
+  ),
+  entry(
+    "fb-data_retention-customer-fast-1",
+    "data_retention",
+    "customer",
+    "Sixty-day deletion, secondary use removed",
+    "Fast-close alternative that stops secondary use of Customer Data but accepts a longer deletion window than the protective entry.",
+    "Northstar shall not use Customer Data for product improvement, analytics, or model training. Upon " +
+      "expiration or termination of the Subscription Term, Northstar shall make Customer Data available " +
+      "for export for thirty (30) days. Northstar shall delete Customer Data from production systems " +
+      "within sixty (60) days after the end of that export period. Northstar may retain aggregated data " +
+      "that has been de-identified such that it cannot reasonably be associated with Customer.",
+    "fast-close",
   ),
 ];

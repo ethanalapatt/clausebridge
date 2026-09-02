@@ -110,11 +110,25 @@ export interface DocumentRevision {
   fictional: true;
 }
 
+/**
+ * Which negotiating stance a library entry was written for. Used to assemble
+ * contrasting packages; it says nothing about which wording is better.
+ */
+export type FallbackPosture = "protective" | "balanced" | "fast-close";
+
+export const FALLBACK_POSTURES: readonly FallbackPosture[] = [
+  "protective",
+  "balanced",
+  "fast-close",
+];
+
 export interface FallbackEntry {
   id: string;
   clauseType: ClauseType;
   /** Which party's negotiating posture this alternative was written for. */
   role: PartyRole;
+  /** How hard this alternative pushes. Drives the alternative packages. */
+  posture: FallbackPosture;
   label: string;
   text: string;
   /**
