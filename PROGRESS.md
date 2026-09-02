@@ -59,7 +59,7 @@ committed, and every pushed SHA was verified against `git ls-remote origin refs/
 | E+F | Objective board, comparison surface, provenance panel, timeline/replay, export bundle UI | verify exit 0 (316 tests); loopback SSR HTTP 200, 61,176 bytes, no dev-server errors | `51d6217` | `51d6217` — verified |
 | G | 13-step demo director, presentation mode, live region, document relationship map | 12 new tests; verify exit 0 (328 tests) | `78e9966` | `78e9966` — verified |
 | H | Import review hardening, clause-navigation shortcuts, README, this record | verify exit 0 (328 tests) | `2490da6` | `2490da6` — verified |
-| I | **Interactive Chrome pass** and the objective-board layout bug it found | verify exit 0 (328 tests); thirteen-step walkthrough driven in Chrome, console clean | _this commit_ | _this commit_ |
+| I | **Interactive Chrome pass** and the objective-board layout bug it found | verify exit 0 (328 tests); thirteen-step walkthrough driven in Chrome, console clean | `c320c33` | `c320c33` — verified |
 
 ## Current state
 
